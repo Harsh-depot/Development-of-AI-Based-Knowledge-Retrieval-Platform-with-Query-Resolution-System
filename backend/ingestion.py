@@ -54,7 +54,18 @@ class IngestionEngine:
                     vectors_config=VectorParams(size=self.vector_dim, distance=Distance.COSINE),
                 )
         except Exception as e:
-            logger.error(f"Error ensuring Qdrant collection: {e}")
+            logger.error(f"Error connecting to Qdrant Cloud ({e}). Falling back to local persistent Qdrant storage.")
+            try:
+                os.makedirs(settings.LOCAL_QDRANT_PATH, exist_ok=True)
+                self.qdrant_client = QdrantClient(path=settings.LOCAL_QDRANT_PATH)
+                collections = self.qdrant_client.get_collections().collections
+                if not any(c.name == self.collection_name for c in collections):
+                    self.qdrant_client.create_collection(
+                        collection_name=self.collection_name,
+                        vectors_config=VectorParams(size=self.vector_dim, distance=Distance.COSINE),
+                    )
+            except Exception as e2:
+                logger.error(f"Local Qdrant fallback error: {e2}")
 
     # =========================================================================
     # Multi-Format Parsers

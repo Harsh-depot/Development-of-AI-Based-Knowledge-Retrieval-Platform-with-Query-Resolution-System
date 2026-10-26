@@ -20,15 +20,31 @@ from config import settings
 db_url = settings.DATABASE_URL
 connect_args = {}
 
+from pathlib import Path
+fallback_sqlite_path = Path(__file__).resolve().parent / "query_system.db"
+fallback_sqlite_url = f"sqlite:///{fallback_sqlite_path}"
+
 if not db_url or db_url.startswith("http://") or db_url.startswith("https://"):
-    from pathlib import Path
-    fallback_path = Path(__file__).resolve().parent / "query_system.db"
-    db_url = f"sqlite:///{fallback_path}"
+    db_url = fallback_sqlite_url
     connect_args = {"check_same_thread": False}
 elif db_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
-engine = create_engine(db_url, connect_args=connect_args)
+try:
+    engine = create_engine(db_url, connect_args=connect_args)
+    # Test connection if not SQLite
+    if not db_url.startswith("sqlite"):
+        with engine.connect() as test_conn:
+            pass
+except Exception as e:
+    import logging
+    logging.getLogger("database").warning(
+        f"Could not connect to external DATABASE_URL ({e}). Render instances may lack IPv6 connectivity. Falling back to local SQLite at {fallback_sqlite_path}"
+    )
+    db_url = fallback_sqlite_url
+    connect_args = {"check_same_thread": False}
+    engine = create_engine(db_url, connect_args=connect_args)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -96,7 +112,16 @@ class QueryAnalytics(Base):
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    global engine, SessionLocal
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import logging
+        logging.getLogger("database").error(f"init_db failed on primary engine ({e}). Falling back to SQLite.")
+        fallback_path = Path(__file__).resolve().parent / "query_system.db"
+        engine = create_engine(f"sqlite:///{fallback_path}", connect_args={"check_same_thread": False})
+        SessionLocal.configure(bind=engine)
+        Base.metadata.create_all(bind=engine)
 
 
 def get_db():
