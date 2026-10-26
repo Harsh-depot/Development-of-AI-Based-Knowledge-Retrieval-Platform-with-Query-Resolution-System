@@ -1,0 +1,7 @@
+id,category,question,answer
+1,Authentication,How do I generate an API key for the Query Resolution System?,Navigate to the developer console at /settings/tokens, click 'Create Token', choose Read-Only or Read-Write permissions, and copy the Bearer token.
+2,Rate Limits,What are the default rate limits on free-tier API endpoints?,The free tier permits up to 60 requests per minute and 1000 requests per day per authenticated IP address.
+3,Voice Integration,Which browsers support voice input and speech synthesis?,The browser-native Web Speech API is supported on Google Chrome, Microsoft Edge, and Safari on desktop and mobile.
+4,Vector Embeddings,What embedding model is used for text representation?,The system uses FastEmbed with BAAI/bge-small-en-v1.5 generating 384-dimensional dense vectors directly on CPU at zero cost.
+5,Confidence Scoring,How is retrieval confidence calibrated?,Cross-encoder logits from FlashRank are passed through the sigmoid calibration function C = 1 / (1 + exp(-z)). Chunks with confidence below 0.40 are rejected.
+6,Knowledge Gaps,Where are low-confidence queries tracked?,Queries with confidence scores below 0.40 or with zero matching chunks are automatically stored in the query_analytics table for administrative review.
