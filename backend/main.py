@@ -378,7 +378,7 @@ def get_chat_history(session_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/api/seed-samples")
-def seed_sample_data(db: Session = Depends(get_db)):
+def seed_sample_data(force: bool = False, db: Session = Depends(get_db)):
     """One-click seeding of multi-domain knowledge bases (HR, Academic, FAQ CSV)."""
     sample_dir = Path(__file__).resolve().parent / "sample_data"
     seeded_docs = []
@@ -392,8 +392,12 @@ def seed_sample_data(db: Session = Depends(get_db)):
     for fname, domain in samples:
         fpath = sample_dir / fname
         if fpath.exists():
-            # Check if already indexed
             existing = db.query(Document).filter(Document.filename == fname).first()
+            if existing and force:
+                db.delete(existing)
+                db.commit()
+                existing = None
+
             if not existing:
                 doc = ingestion_engine.chunk_and_index_document(
                     file_path=str(fpath),
