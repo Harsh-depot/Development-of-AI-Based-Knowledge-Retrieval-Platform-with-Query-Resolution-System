@@ -66,16 +66,15 @@ class IngestionEngine:
             # Create payload indexes for fast filtering and deletion
             try:
                 from qdrant_client.models import PayloadSchemaType
-                self.qdrant_client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="document_id",
-                    field_schema=PayloadSchemaType.KEYWORD,
-                )
-                self.qdrant_client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name="domain_category",
-                    field_schema=PayloadSchemaType.KEYWORD,
-                )
+                for field_name in ["user_id", "document_id", "domain_category", "filename"]:
+                    try:
+                        self.qdrant_client.create_payload_index(
+                            collection_name=self.collection_name,
+                            field_name=field_name,
+                            field_schema=PayloadSchemaType.KEYWORD,
+                        )
+                    except Exception:
+                        pass
             except Exception:
                 pass
         except Exception as e:
@@ -341,12 +340,24 @@ class IngestionEngine:
                 )
             )
         if user_id:
-            must_conditions.append(
-                FieldCondition(
-                    key="user_id",
-                    match=MatchValue(value=user_id),
+            try:
+                from qdrant_client.models import IsEmptyCondition, PayloadField
+                # Include chunks belonging to current user OR shared/system chunks (user_id empty)
+                must_conditions.append(
+                    Filter(
+                        should=[
+                            FieldCondition(key="user_id", match=MatchValue(value=user_id)),
+                            IsEmptyCondition(is_empty=PayloadField(key="user_id")),
+                        ]
+                    )
                 )
-            )
+            except Exception:
+                must_conditions.append(
+                    FieldCondition(
+                        key="user_id",
+                        match=MatchValue(value=user_id),
+                    )
+                )
 
         qdrant_filter = Filter(must=must_conditions) if must_conditions else None
 
@@ -367,7 +378,26 @@ class IngestionEngine:
                     query_filter=qdrant_filter,
                     limit=top_k,
                 )
+        except Exception as filter_err:
+            logger.warning(f"Filtered search encountered error: {filter_err}. Retrying without filter as failsafe...")
+            try:
+                if hasattr(self.qdrant_client, "query_points"):
+                    search_result = self.qdrant_client.query_points(
+                        collection_name=self.collection_name,
+                        query=query_vector,
+                        limit=top_k,
+                    ).points
+                else:
+                    search_result = self.qdrant_client.search(
+                        collection_name=self.collection_name,
+                        query_vector=query_vector,
+                        limit=top_k,
+                    )
+            except Exception as e:
+                logger.error(f"Fallback Qdrant search also failed: {e}")
+                return []
 
+        try:
             candidates = []
             for hit in search_result:
                 payload = hit.payload or {}
@@ -385,7 +415,7 @@ class IngestionEngine:
                 )
             return candidates
         except Exception as e:
-            logger.error(f"Error during Qdrant search: {e}")
+            logger.error(f"Error parsing Qdrant search results: {e}")
             return []
 
     def delete_document(self, document_id: str, db_session: Session) -> bool:

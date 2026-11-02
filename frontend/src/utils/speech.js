@@ -25,36 +25,16 @@ export class SpeechEngine {
    * Prompts the browser for microphone permission via getUserMedia
    * to ensure permissions are granted before starting recognition.
    */
-  async requestMicrophonePermission() {
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Stop audio tracks after verifying permission
-        stream.getTracks().forEach((track) => track.stop());
-        return true;
-      } catch (err) {
-        console.warn("Microphone permission check failed:", err);
-        return false;
-      }
-    }
-    return true;
-  }
-
-  async startListening({ onInterim, onFinal, onError, onEnd }) {
+  startListening({ onInterim, onFinal, onError, onEnd }) {
     if (!this.isRecognitionSupported()) {
-      if (onError) onError("Web Speech API is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+      if (onError) onError("Browser Speech Recognition is not supported. Please use Google Chrome or Microsoft Edge.");
       return;
     }
 
     // Stop ongoing recognition if any
     this.stopListening();
-
-    // Verify microphone permission
-    const hasPermission = await this.requestMicrophonePermission();
-    if (!hasPermission) {
-      if (onError) onError("Microphone access was denied. Please click the tune/lock icon in your browser address bar and enable 'Microphone'.");
-      return;
-    }
+    this.isListening = true;
+    let finalTranscript = '';
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     try {
@@ -64,11 +44,10 @@ export class SpeechEngine {
       this.recognition.lang = navigator.language || 'en-US';
       this.recognition.maxAlternatives = 1;
     } catch (e) {
+      this.isListening = false;
       if (onError) onError(`Failed to initialize speech recognition: ${e.message}`);
       return;
     }
-
-    let finalTranscript = '';
 
     this.recognition.onstart = () => {
       this.isListening = true;
@@ -94,6 +73,15 @@ export class SpeechEngine {
     };
 
     this.recognition.onerror = (event) => {
+      // 'no-speech' is a normal silence timeout: keep listening or ignore gracefully
+      if (event.error === 'no-speech') {
+        return;
+      }
+
+      if (event.error === 'aborted') {
+        return;
+      }
+
       this.isListening = false;
       let userFriendlyMessage = "Speech recognition error.";
 
@@ -102,18 +90,12 @@ export class SpeechEngine {
         case 'permission-denied':
           userFriendlyMessage = "Microphone access blocked. Click the lock icon in the address bar to allow microphone access.";
           break;
-        case 'no-speech':
-          userFriendlyMessage = "No speech detected. Please speak closer to the microphone.";
-          break;
         case 'audio-capture':
           userFriendlyMessage = "No microphone hardware found. Please plug in or enable your microphone.";
           break;
         case 'network':
           userFriendlyMessage = "Speech service network error. Check your internet connection.";
           break;
-        case 'aborted':
-          // Intentionally stopped
-          return;
         default:
           userFriendlyMessage = `Speech error: ${event.error || 'Unknown error'}`;
       }
@@ -122,6 +104,16 @@ export class SpeechEngine {
     };
 
     this.recognition.onend = () => {
+      // If user is still actively listening, auto-restart on silent timeout
+      if (this.isListening && this.recognition) {
+        try {
+          this.recognition.start();
+          return;
+        } catch {
+          // Fall through
+        }
+      }
+
       this.isListening = false;
       if (onFinal && finalTranscript.trim()) {
         onFinal(finalTranscript.trim());
