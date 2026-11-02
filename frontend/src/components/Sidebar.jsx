@@ -57,43 +57,43 @@ export default function Sidebar({
   const getFileIcon = (fileType) => {
     const type = fileType?.toLowerCase();
     if (type === 'pdf') return <FileText className="w-4 h-4 text-rose-400" />;
-    if (type === 'csv') return <Table className="w-4 h-4 text-emerald-400" />;
+    if (type === 'csv') return <Table className="w-4 h-4 text-blue-400" />;
     if (type === 'docx' || type === 'doc') return <FileCode className="w-4 h-4 text-blue-400" />;
     return <FileText className="w-4 h-4 text-slate-400" />;
   };
 
   return (
     <aside
-      className={`fixed lg:static inset-y-0 left-0 z-30 w-80 glass-panel border-r border-slate-800/80 bg-slate-950/95 lg:bg-slate-950/60 backdrop-blur-xl flex flex-col transition-transform duration-300 ease-in-out ${
+      className={`fixed lg:static inset-y-0 left-0 z-30 w-80 bg-[#111827] border-r border-[#1F2937] flex flex-col transition-transform duration-300 ease-in-out ${
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-800/80 flex items-center justify-between">
+      <div className="p-4 border-b border-[#1F2937] flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <FolderOpen className="w-4 h-4 text-emerald-400" />
-          <h2 className="text-sm font-bold text-white tracking-wide uppercase">Knowledge Base</h2>
+          <FolderOpen className="w-4 h-4 text-blue-400" />
+          <h2 className="text-xs font-bold text-slate-200 tracking-wider uppercase">Knowledge Base</h2>
         </div>
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#0B0F19] text-slate-300 border border-[#1F2937]">
           {documents.length} Docs
         </span>
       </div>
 
       {/* Domain Filtering Tabs */}
-      <div className="p-3 border-b border-slate-800/80 bg-slate-900/40">
+      <div className="p-3 border-b border-[#1F2937] bg-[#0B0F19]">
         <div className="flex items-center space-x-1 mb-2 text-xs text-slate-400 font-medium">
-          <Filter className="w-3 h-3 text-emerald-400" />
-          <span>Active Domain Scope:</span>
+          <Filter className="w-3 h-3 text-blue-400" />
+          <span>Domain Scope:</span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           {filterDomains.map((dom) => (
             <button
               key={dom}
               onClick={() => setActiveDomain(dom)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium text-left truncate transition ${
+              className={`px-2.5 py-1.5 rounded-md text-xs font-medium text-left truncate transition ${
                 activeDomain === dom
-                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30'
-                  : 'bg-slate-900/60 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 border border-slate-800/60'
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/30'
+                  : 'bg-[#111827] text-slate-400 hover:text-slate-200 border border-[#1F2937]'
               }`}
             >
               {dom}
@@ -103,13 +103,13 @@ export default function Sidebar({
       </div>
 
       {/* Upload Zone */}
-      <div className="p-4 border-b border-slate-800/80">
+      <div className="p-4 border-b border-[#1F2937]">
         <div className="mb-2.5 flex items-center justify-between">
           <label className="text-xs font-medium text-slate-300">Target Category:</label>
           <select
             value={selectedDomain}
             onChange={(e) => setSelectedDomain(e.target.value)}
-            className="text-xs bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-slate-200 focus:outline-none focus:border-emerald-500"
+            className="text-xs bg-[#0B0F19] border border-[#1F2937] rounded-md px-2 py-1 text-slate-200 focus:outline-none focus:border-blue-500"
           >
             {domainOptions.map((opt) => (
               <option key={opt} value={opt}>
@@ -127,10 +127,10 @@ export default function Sidebar({
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition flex flex-col items-center justify-center ${
+          className={`cursor-pointer rounded-lg border border-dashed p-4 text-center transition flex flex-col items-center justify-center ${
             dragOver
-              ? 'border-emerald-400 bg-emerald-950/20'
-              : 'border-slate-700/80 hover:border-slate-600 bg-slate-900/30'
+              ? 'border-blue-500 bg-blue-500/10'
+              : 'border-[#1F2937] hover:border-blue-500/50 bg-[#0B0F19]'
           }`}
         >
           <input
@@ -140,8 +140,8 @@ export default function Sidebar({
             onChange={handleFileChange}
             className="hidden"
           />
-          <UploadCloud className={`w-7 h-7 mb-1.5 ${isUploading ? 'animate-bounce text-emerald-400' : 'text-slate-400'}`} />
-          <p className="text-xs font-semibold text-slate-200">
+          <UploadCloud className={`w-6 h-6 mb-1.5 ${isUploading ? 'animate-bounce text-blue-400' : 'text-slate-400'}`} />
+          <p className="text-xs font-medium text-slate-200">
             {isUploading ? 'Ingesting Chunks...' : 'Click or Drag Document Here'}
           </p>
           <p className="text-[10px] text-slate-500 mt-0.5">
@@ -164,21 +164,21 @@ export default function Sidebar({
           documents.map((doc) => (
             <div
               key={doc.id}
-              className="glass-card glass-card-hover rounded-xl p-3 flex items-start justify-between group"
+              className="rounded-lg p-3 flex items-start justify-between group bg-[#0B0F19] border border-[#1F2937] hover:border-blue-500/40 transition"
             >
               <div className="flex items-start space-x-2.5 min-w-0">
-                <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 shrink-0">
+                <div className="p-1.5 rounded bg-[#111827] border border-[#1F2937] shrink-0">
                   {getFileIcon(doc.file_type)}
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-xs font-semibold text-slate-200 truncate group-hover:text-emerald-300 transition" title={doc.filename}>
+                  <h4 className="text-xs font-semibold text-slate-200 truncate group-hover:text-blue-300 transition" title={doc.filename}>
                     {doc.filename}
                   </h4>
                   <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-medium">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#111827] text-slate-400 font-medium border border-[#1F2937]">
                       {doc.domain_category}
                     </span>
-                    <span className="text-[10px] text-emerald-400/90 font-mono">
+                    <span className="text-[10px] text-blue-400 font-mono">
                       {doc.chunk_count} chunks
                     </span>
                   </div>
@@ -201,9 +201,9 @@ export default function Sidebar({
       </div>
 
       {/* Footer Info */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-950 text-[11px] text-slate-500 flex items-center justify-between">
+      <div className="p-3 border-t border-[#1F2937] bg-[#0B0F19] text-[11px] text-slate-500 flex items-center justify-between">
         <span>384d FastEmbed • Qdrant</span>
-        <span className="text-emerald-400 font-mono">Free Tier $0.00</span>
+        <span className="text-blue-400 font-mono">Free Tier $0.00</span>
       </div>
     </aside>
   );

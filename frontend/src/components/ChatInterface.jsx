@@ -132,7 +132,7 @@ export default function ChatInterface({
     if (val >= 0.75) {
       return {
         label: `${(val * 100).toFixed(0)}% High`,
-        classes: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        classes: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
       };
     } else if (val >= 0.40) {
       return {
@@ -156,10 +156,10 @@ export default function ChatInterface({
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#070a13] relative overflow-hidden">
+    <div className="flex-1 flex flex-col h-full bg-[#0B0F19] relative overflow-hidden">
       
       {/* Agent Workflow Ribbon */}
-      <div className="px-4 py-2 border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md flex items-center justify-between text-xs">
+      <div className="px-4 py-2 border-b border-[#1F2937] bg-[#111827] flex items-center justify-between text-xs">
         <div className="flex items-center space-x-2 text-slate-400">
           <span className="font-semibold text-slate-300">LangGraph Pipeline:</span>
           <div className="hidden sm:flex items-center space-x-1.5 font-mono text-[11px]">
@@ -168,8 +168,8 @@ export default function ChatInterface({
                 <span
                   className={`px-2 py-0.5 rounded transition ${
                     isLoading
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse'
-                      : 'bg-slate-900 text-slate-400'
+                      ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                      : 'bg-[#0B0F19] text-slate-400 border border-[#1F2937]'
                   }`}
                 >
                   {st.name}
@@ -184,7 +184,7 @@ export default function ChatInterface({
 
         <div className="flex items-center space-x-2">
           <span className="text-slate-400 text-[11px]">Scope:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
             {activeDomain}
           </span>
         </div>
@@ -193,18 +193,18 @@ export default function ChatInterface({
       {/* Messages Stream */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
         {messages.length === 0 ? (
-          <div className="max-w-2xl mx-auto py-8 sm:py-12 text-center space-y-6 animate-fadeIn">
+          <div className="max-w-2xl mx-auto py-8 sm:py-12 text-center space-y-6">
             {/* Hero Icon */}
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-500 flex items-center justify-center mx-auto shadow-xl shadow-emerald-500/10 border border-emerald-400/30">
-              <Sparkles className="w-8 h-8 text-white" />
+            <div className="w-14 h-14 rounded-xl bg-blue-600 text-white flex items-center justify-center mx-auto border border-blue-500/40">
+              <Sparkles className="w-7 h-7 text-blue-100" />
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-white tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-100 tracking-tight">
                 AI-Powered Intelligent Query Resolution
               </h2>
-              <p className="text-sm text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
-                Domain-agnostic voice and text conversational assistant powered by a 5-Agent LangGraph architecture, FastEmbed vectors, and FlashRank cross-encoder reranking ($0.00 cost stack).
+              <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
+                Domain-agnostic voice and text conversational assistant powered by a 5-Agent LangGraph architecture, FastEmbed vectors, and FlashRank cross-encoder reranking.
               </p>
             </div>
 
@@ -217,13 +217,13 @@ export default function ChatInterface({
                     setInputText(p.query);
                     inputRef.current?.focus();
                   }}
-                  className="glass-card glass-card-hover rounded-xl p-3.5 border border-slate-800 text-left transition group"
+                  className="rounded-lg p-3.5 bg-[#111827] border border-[#1F2937] hover:border-blue-500/50 text-left transition group"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300">
+                    <span className="text-xs font-semibold text-blue-400 group-hover:text-blue-300">
                       {p.title}
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 uppercase font-mono">
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#0B0F19] text-slate-400 uppercase font-mono border border-[#1F2937]">
                       {p.domain}
                     </span>
                   </div>
@@ -247,10 +247,10 @@ export default function ChatInterface({
               >
                 {/* Avatar */}
                 <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                     isUser
-                      ? 'bg-gradient-to-tr from-slate-700 to-slate-800 border-slate-700 text-slate-200'
-                      : 'bg-gradient-to-tr from-emerald-600 to-teal-700 border-emerald-500/30 text-white'
+                      ? 'bg-[#1F2937] border-slate-700 text-slate-200'
+                      : 'bg-blue-600 border-blue-500/40 text-white'
                   }`}
                 >
                   {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
@@ -263,7 +263,7 @@ export default function ChatInterface({
                   {!isUser && (
                     <div className="flex flex-wrap items-center gap-2">
                       {msg.query_type && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-800/80 text-cyan-300 border border-cyan-500/20 font-mono">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-[#111827] text-blue-400 border border-[#1F2937] font-mono">
                           {msg.query_type}
                         </span>
                       )}
@@ -279,19 +279,19 @@ export default function ChatInterface({
                         onClick={() => toggleSpeech(msg.id, msg.content)}
                         className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-medium transition ${
                           isSpeaking
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                            : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                            : 'bg-[#111827] text-slate-400 hover:text-slate-200 border border-[#1F2937]'
                         }`}
                         title={isSpeaking ? 'Stop speaking' : 'Read aloud with browser Web Speech API'}
                       >
                         {isSpeaking ? (
                           <>
                             <div className="flex items-center space-x-0.5 h-3">
-                              <span className="w-0.5 bg-emerald-400 audio-bar-1" />
-                              <span className="w-0.5 bg-emerald-400 audio-bar-2" />
-                              <span className="w-0.5 bg-emerald-400 audio-bar-3" />
+                              <span className="w-0.5 bg-blue-400 audio-bar-1" />
+                              <span className="w-0.5 bg-blue-400 audio-bar-2" />
+                              <span className="w-0.5 bg-blue-400 audio-bar-3" />
                             </div>
-                            <span className="text-emerald-400 ml-1">Stop Voice</span>
+                            <span className="text-blue-400 ml-1">Stop Voice</span>
                           </>
                         ) : (
                           <>
@@ -305,9 +305,9 @@ export default function ChatInterface({
                       {msg.reranked_chunks && msg.reranked_chunks.length > 0 && (
                         <button
                           onClick={() => onInspectResponse(msg)}
-                          className="flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-900 text-slate-400 hover:text-emerald-300 hover:bg-slate-850 border border-slate-800 transition"
+                          className="flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#111827] text-slate-400 hover:text-blue-300 border border-[#1F2937] transition"
                         >
-                          <Layers className="w-3 h-3 text-emerald-400" />
+                          <Layers className="w-3 h-3 text-blue-400" />
                           <span>Inspect Sources</span>
                         </button>
                       )}
@@ -316,10 +316,10 @@ export default function ChatInterface({
 
                   {/* Message Bubble */}
                   <div
-                    className={`rounded-2xl p-4 text-sm leading-relaxed ${
+                    className={`rounded-lg p-4 text-sm leading-relaxed border ${
                       isUser
-                        ? 'bg-slate-800 text-white rounded-tr-sm border border-slate-700/80 shadow-md'
-                        : 'glass-card text-slate-200 rounded-tl-sm border border-slate-800 shadow-md'
+                        ? 'bg-blue-600/15 text-slate-100 border-blue-500/30'
+                        : 'bg-[#111827] text-slate-200 border-[#1F2937]'
                     }`}
                   >
                     <div className="whitespace-pre-wrap font-sans">
@@ -328,16 +328,16 @@ export default function ChatInterface({
 
                     {/* Citations Footer */}
                     {!isUser && msg.citations && msg.citations.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-slate-800/80 flex flex-wrap gap-1.5">
+                      <div className="mt-3 pt-3 border-t border-[#1F2937] flex flex-wrap gap-1.5">
                         <span className="text-[10px] uppercase font-semibold text-slate-400 self-center mr-1">
                           Sources:
                         </span>
                         {msg.citations.map((cite, i) => (
                           <span
                             key={i}
-                            className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] bg-slate-900/90 border border-slate-700 text-slate-300 font-mono"
+                            className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] bg-[#0B0F19] border border-[#1F2937] text-slate-300 font-mono"
                           >
-                            <FileText className="w-3 h-3 text-emerald-400" />
+                            <FileText className="w-3 h-3 text-blue-400" />
                             <span>
                               {cite.document_name} (p.{cite.page_number})
                             </span>
@@ -361,14 +361,14 @@ export default function ChatInterface({
         {/* Loading Indicator */}
         {isLoading && (
           <div className="flex items-center space-x-3 text-slate-400 text-xs py-3 max-w-xl">
-            <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4 text-emerald-400 animate-spin" />
+            <div className="w-8 h-8 rounded-lg bg-[#111827] border border-[#1F2937] flex items-center justify-center shrink-0">
+              <Bot className="w-4 h-4 text-blue-400 animate-spin" />
             </div>
-            <div className="glass-card rounded-xl px-4 py-2.5 border border-slate-800 flex items-center space-x-3">
+            <div className="rounded-lg px-4 py-2.5 bg-[#111827] border border-[#1F2937] flex items-center space-x-3">
               <div className="flex space-x-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
               <span className="font-mono text-slate-300">
                 Multi-Agent LangGraph resolving query...
@@ -381,13 +381,13 @@ export default function ChatInterface({
       </div>
 
       {/* Input Area */}
-      <div className="p-3 sm:p-4 border-t border-slate-800/80 bg-slate-950/90 backdrop-blur-xl">
+      <div className="p-3 sm:p-4 border-t border-[#1F2937] bg-[#111827]">
         
         {/* Live Interim Voice Recognition Transcript Bubble */}
         {(isListening || interimText) && (
-          <div className="mb-2 max-w-2xl mx-auto px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between text-xs text-emerald-300 animate-pulse">
+          <div className="mb-2 max-w-2xl mx-auto px-3 py-1.5 rounded-md bg-blue-950/40 border border-blue-500/40 flex items-center justify-between text-xs text-blue-300">
             <div className="flex items-center space-x-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="h-2 w-2 rounded-full bg-blue-400 animate-ping" />
               <span>Listening via Web Speech API: <em>"{interimText || 'Speak clearly now...'}"</em></span>
             </div>
             <button
@@ -405,10 +405,10 @@ export default function ChatInterface({
           <button
             type="button"
             onClick={toggleListening}
-            className={`absolute left-2.5 p-2 rounded-xl transition ${
+            className={`absolute left-2.5 p-2 rounded-md transition ${
               isListening
-                ? 'bg-rose-500 text-white animate-pulse shadow-lg shadow-rose-500/30'
-                : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-850'
+                ? 'bg-rose-600 text-white animate-pulse'
+                : 'text-slate-400 hover:text-blue-400 hover:bg-[#0B0F19]'
             }`}
             title={isListening ? 'Stop recording voice' : 'Click to speak via Web Speech API'}
           >
@@ -423,14 +423,14 @@ export default function ChatInterface({
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={isListening ? "Listening to your voice..." : "Ask a query or speak naturally across knowledge bases..."}
-            className="w-full pl-11 pr-14 py-3 bg-slate-900/90 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/40 resize-none shadow-inner"
+            className="w-full pl-11 pr-14 py-2.5 bg-[#0B0F19] border border-[#1F2937] rounded-lg text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
           />
 
           {/* Send Button */}
           <button
             type="submit"
             disabled={!inputText.trim() || isLoading}
-            className="absolute right-2 p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition disabled:opacity-30 disabled:hover:bg-emerald-600 shadow-md shadow-emerald-600/20"
+            className="absolute right-2 p-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-30 disabled:hover:bg-blue-600"
             title="Send query (Enter)"
           >
             <Send className="w-4 h-4" />
@@ -439,7 +439,7 @@ export default function ChatInterface({
         </form>
 
         <p className="text-[10px] text-center text-slate-500 mt-2">
-          Infosys Internship Project • Zero Cost Infrastructure • Press <code>Enter</code> to send, <code>Shift + Enter</code> for newline
+          AI Query Resolution System • Press <code>Enter</code> to send, <code>Shift + Enter</code> for newline
         </p>
 
       </div>

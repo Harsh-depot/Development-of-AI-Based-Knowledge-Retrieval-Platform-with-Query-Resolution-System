@@ -33,7 +33,7 @@ class Settings(BaseModel):
 
     # Local CPU Models ($0.00 Cost)
     FASTEMBED_MODEL_NAME: str = os.getenv("FASTEMBED_MODEL_NAME", "BAAI/bge-small-en-v1.5")
-    FLASHRANK_MODEL_NAME: str = os.getenv("FLASHRANK_MODEL_NAME", "ms-marco-TinyBERT-L-2-v2")
+    FLASHRANK_MODEL_NAME: str = os.getenv("FLASHRANK_MODEL_NAME", "ms-marco-MiniLM-L-6-v2")
 
     # Relational Database (PostgreSQL Neon/Supabase or Local SQLite fallback)
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{Path(__file__).resolve().parent / 'query_system.db'}")
