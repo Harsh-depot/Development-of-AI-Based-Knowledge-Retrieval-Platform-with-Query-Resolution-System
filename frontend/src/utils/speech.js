@@ -7,37 +7,68 @@
 export class SpeechEngine {
   constructor() {
     this.recognition = null;
-    this.synth = window.speechSynthesis || null;
+    this.synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
     this.isListening = false;
     this.isSpeaking = false;
     this.currentUtterance = null;
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      this.recognition = new SpeechRecognition();
-      this.recognition.continuous = false;
-      this.recognition.interimResults = true;
-      this.recognition.lang = 'en-US';
-    }
   }
 
   isRecognitionSupported() {
-    return !!this.recognition;
+    return typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   }
 
   isSynthesisSupported() {
-    return !!this.synth;
+    return typeof window !== 'undefined' && !!window.speechSynthesis;
   }
 
-  startListening({ onInterim, onFinal, onError, onEnd }) {
-    if (!this.recognition) {
-      if (onError) onError(new Error("Web Speech API is not supported in this browser. Please use Google Chrome or Microsoft Edge."));
+  /**
+   * Prompts the browser for microphone permission via getUserMedia
+   * to ensure permissions are granted before starting recognition.
+   */
+  async requestMicrophonePermission() {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Stop audio tracks after verifying permission
+        stream.getTracks().forEach((track) => track.stop());
+        return true;
+      } catch (err) {
+        console.warn("Microphone permission check failed:", err);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async startListening({ onInterim, onFinal, onError, onEnd }) {
+    if (!this.isRecognitionSupported()) {
+      if (onError) onError("Web Speech API is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
       return;
     }
 
-    if (this.isListening) {
-      this.stopListening();
+    // Stop ongoing recognition if any
+    this.stopListening();
+
+    // Verify microphone permission
+    const hasPermission = await this.requestMicrophonePermission();
+    if (!hasPermission) {
+      if (onError) onError("Microphone access was denied. Please click the tune/lock icon in your browser address bar and enable 'Microphone'.");
+      return;
     }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    try {
+      this.recognition = new SpeechRecognition();
+      this.recognition.continuous = true;
+      this.recognition.interimResults = true;
+      this.recognition.lang = navigator.language || 'en-US';
+      this.recognition.maxAlternatives = 1;
+    } catch (e) {
+      if (onError) onError(`Failed to initialize speech recognition: ${e.message}`);
+      return;
+    }
+
+    let finalTranscript = '';
 
     this.recognition.onstart = () => {
       this.isListening = true;
@@ -45,47 +76,78 @@ export class SpeechEngine {
 
     this.recognition.onresult = (event) => {
       let interimTranscript = '';
-      let finalTranscript = '';
 
       for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+          finalTranscript += (finalTranscript ? ' ' : '') + transcript.trim();
         } else {
-          interimTranscript += event.results[i][0].transcript;
+          interimTranscript += transcript;
         }
       }
 
-      if (onInterim && interimTranscript) {
-        onInterim(interimTranscript);
-      }
+      const activeText = finalTranscript + (interimTranscript ? ` ${interimTranscript}` : '');
 
-      if (onFinal && finalTranscript) {
-        onFinal(finalTranscript);
+      if (onInterim && activeText) {
+        onInterim(activeText.trim());
       }
     };
 
     this.recognition.onerror = (event) => {
       this.isListening = false;
-      if (onError) onError(event.error);
+      let userFriendlyMessage = "Speech recognition error.";
+
+      switch (event.error) {
+        case 'not-allowed':
+        case 'permission-denied':
+          userFriendlyMessage = "Microphone access blocked. Click the lock icon in the address bar to allow microphone access.";
+          break;
+        case 'no-speech':
+          userFriendlyMessage = "No speech detected. Please speak closer to the microphone.";
+          break;
+        case 'audio-capture':
+          userFriendlyMessage = "No microphone hardware found. Please plug in or enable your microphone.";
+          break;
+        case 'network':
+          userFriendlyMessage = "Speech service network error. Check your internet connection.";
+          break;
+        case 'aborted':
+          // Intentionally stopped
+          return;
+        default:
+          userFriendlyMessage = `Speech error: ${event.error || 'Unknown error'}`;
+      }
+
+      if (onError) onError(userFriendlyMessage);
     };
 
     this.recognition.onend = () => {
       this.isListening = false;
+      if (onFinal && finalTranscript.trim()) {
+        onFinal(finalTranscript.trim());
+      }
       if (onEnd) onEnd();
     };
 
     try {
       this.recognition.start();
     } catch (e) {
-      console.warn("SpeechRecognition already started or error:", e);
+      console.warn("SpeechRecognition start exception:", e);
+      this.isListening = false;
+      if (onError) onError(`Could not start speech recognition: ${e.message}`);
     }
   }
 
   stopListening() {
-    if (this.recognition && this.isListening) {
-      this.recognition.stop();
-      this.isListening = false;
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch (e) {
+        // ignore already stopped
+      }
+      this.recognition = null;
     }
+    this.isListening = false;
   }
 
   /**
@@ -169,18 +231,6 @@ export class SpeechEngine {
       this.synth.cancel();
       this.isSpeaking = false;
       this.currentUtterance = null;
-    }
-  }
-
-  pauseSpeaking() {
-    if (this.synth && this.isSpeaking) {
-      this.synth.pause();
-    }
-  }
-
-  resumeSpeaking() {
-    if (this.synth) {
-      this.synth.resume();
     }
   }
 }

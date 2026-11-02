@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   BarChart3,
   AlertTriangle,
   CheckCircle2,
+  Trash2,
   TrendingUp,
   HelpCircle,
   Clock,
@@ -12,8 +13,13 @@ import {
 
 export default function AnalyticsModal({
   analyticsData,
+  onDeleteGap,
+  onClearAllGaps,
   onClose,
 }) {
+  const [deletingId, setDeletingId] = useState(null);
+  const [isClearingAll, setIsClearingAll] = useState(false);
+
   if (!analyticsData) return null;
 
   const {
@@ -23,6 +29,25 @@ export default function AnalyticsModal({
     average_confidence = 0.0,
     recent_knowledge_gaps = [],
   } = analyticsData;
+
+  const handleDelete = async (gapId) => {
+    setDeletingId(gapId);
+    try {
+      if (onDeleteGap) await onDeleteGap(gapId);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm("Are you sure you want to delete all knowledge gap reports?")) return;
+    setIsClearingAll(true);
+    try {
+      if (onClearAllGaps) await onClearAllGaps();
+    } finally {
+      setIsClearingAll(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -97,11 +122,20 @@ export default function AnalyticsModal({
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
               <AlertTriangle className="w-4 h-4 text-amber-400" />
-              Recent Knowledge Gaps Detected
+              Recent Knowledge Gaps Detected ({recent_knowledge_gaps.length})
             </h4>
-            <span className="text-xs text-slate-500 font-mono">
-              PostgreSQL query_analytics
-            </span>
+            
+            {recent_knowledge_gaps.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                disabled={isClearingAll}
+                className="flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-md border border-rose-500/30 transition disabled:opacity-50"
+                title="Delete all previous knowledge gap reports"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isClearingAll ? 'Clearing...' : 'Clear All Reports'}</span>
+              </button>
+            )}
           </div>
 
           {recent_knowledge_gaps.length === 0 ? (
@@ -111,7 +145,7 @@ export default function AnalyticsModal({
                 No Knowledge Gaps Detected
               </p>
               <p className="text-xs text-slate-400 mt-1">
-                All queried questions met or exceeded the 0.40 confidence threshold.
+                All previous gap reports cleared or queries met the 0.40 confidence threshold.
               </p>
             </div>
           ) : (
@@ -124,6 +158,7 @@ export default function AnalyticsModal({
                     <th className="py-2.5 px-3">Confidence</th>
                     <th className="py-2.5 px-3">Status</th>
                     <th className="py-2.5 px-3">Logged At</th>
+                    <th className="py-2.5 px-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1F2937] text-slate-300">
@@ -145,6 +180,16 @@ export default function AnalyticsModal({
                       </td>
                       <td className="py-2.5 px-3 text-slate-500 text-[11px]">
                         {new Date(gap.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          onClick={() => handleDelete(gap.id)}
+                          disabled={deletingId === gap.id}
+                          className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition disabled:opacity-30"
+                          title="Delete this gap report"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))}

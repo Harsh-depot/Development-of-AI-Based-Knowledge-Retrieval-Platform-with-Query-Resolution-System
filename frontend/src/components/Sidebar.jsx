@@ -202,8 +202,8 @@ export default function Sidebar({
 
       {/* Footer Info */}
       <div className="p-3 border-t border-[#1F2937] bg-[#0B0F19] text-[11px] text-slate-500 flex items-center justify-between">
-        <span>384d FastEmbed • Qdrant</span>
-        <span className="text-blue-400 font-mono">Free Tier $0.00</span>
+        <span>FastEmbed (384d) • Qdrant</span>
+        <span className="text-slate-400 font-mono">CPU RAG</span>
       </div>
     </aside>
   );

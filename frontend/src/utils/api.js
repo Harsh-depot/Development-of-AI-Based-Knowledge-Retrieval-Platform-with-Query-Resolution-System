@@ -64,6 +64,22 @@ export async function fetchAnalytics() {
   return res.json();
 }
 
+export async function deleteAnalyticsGap(gapId) {
+  const res = await fetch(`${API_BASE_URL}/api/analytics/${gapId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error("Failed to delete analytics report");
+  return res.json();
+}
+
+export async function clearAllAnalytics() {
+  const res = await fetch(`${API_BASE_URL}/api/analytics`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error("Failed to clear analytics reports");
+  return res.json();
+}
+
 export async function seedSampleData() {
   const res = await fetch(`${API_BASE_URL}/api/seed-samples`, {
     method: 'POST',

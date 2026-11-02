@@ -11,6 +11,8 @@ import {
   deleteDocument,
   sendQuery,
   fetchAnalytics,
+  deleteAnalyticsGap,
+  clearAllAnalytics,
   seedSampleData,
 } from './utils/api';
 
@@ -135,12 +137,49 @@ export default function App() {
     setIsSeeding(true);
     try {
       await seedSampleData();
-      const docs = await fetchDocuments();
+      const [docs, analytics] = await Promise.all([
+        fetchDocuments(),
+        fetchAnalytics().catch(() => null),
+      ]);
       setDocuments(docs);
+      if (analytics) setAnalyticsData(analytics);
     } catch (err) {
       alert(`Seeding failed: ${err.message}`);
     } finally {
       setIsSeeding(false);
+    }
+  };
+
+  const handleDeleteGap = async (gapId) => {
+    try {
+      await deleteAnalyticsGap(gapId);
+      setAnalyticsData((prev) => {
+        if (!prev) return prev;
+        const updatedGaps = (prev.recent_knowledge_gaps || []).filter((g) => g.id !== gapId);
+        return {
+          ...prev,
+          total_queries: Math.max(0, (prev.total_queries || 1) - 1),
+          low_confidence_count: Math.max(0, (prev.low_confidence_count || 1) - 1),
+          unanswered_count: Math.max(0, (prev.unanswered_count || 1) - 1),
+          recent_knowledge_gaps: updatedGaps,
+        };
+      });
+    } catch (err) {
+      alert(`Failed to delete gap report: ${err.message}`);
+    }
+  };
+
+  const handleClearAllGaps = async () => {
+    try {
+      await clearAllAnalytics();
+      setAnalyticsData((prev) => ({
+        ...prev,
+        low_confidence_count: 0,
+        unanswered_count: 0,
+        recent_knowledge_gaps: [],
+      }));
+    } catch (err) {
+      alert(`Failed to clear gap reports: ${err.message}`);
     }
   };
 
@@ -176,6 +215,7 @@ export default function App() {
         <main className="flex-1 flex flex-col h-full overflow-hidden relative">
           <ChatInterface
             messages={messages}
+            documents={documents}
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
             onInspectResponse={(msg) => setActiveInspection(msg)}
@@ -197,6 +237,8 @@ export default function App() {
       {isAnalyticsOpen && (
         <AnalyticsModal
           analyticsData={analyticsData}
+          onDeleteGap={handleDeleteGap}
+          onClearAllGaps={handleClearAllGaps}
           onClose={() => setIsAnalyticsOpen(false)}
         />
       )}

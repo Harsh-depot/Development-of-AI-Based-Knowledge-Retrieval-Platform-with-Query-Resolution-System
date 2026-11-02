@@ -354,6 +354,25 @@ def get_analytics(db: Session = Depends(get_db)):
     )
 
 
+@app.delete("/api/analytics/{gap_id}")
+def delete_analytics_entry(gap_id: str, db: Session = Depends(get_db)):
+    """Deletes an unwanted knowledge gap analytics report."""
+    entry = db.query(QueryAnalytics).filter(QueryAnalytics.id == gap_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Analytics record not found")
+    db.delete(entry)
+    db.commit()
+    return {"status": "success", "message": f"Analytics record {gap_id} deleted"}
+
+
+@app.delete("/api/analytics")
+def clear_all_analytics(db: Session = Depends(get_db)):
+    """Deletes all knowledge gap analytics reports."""
+    deleted_count = db.query(QueryAnalytics).delete()
+    db.commit()
+    return {"status": "success", "deleted_count": deleted_count, "message": "All analytics reports cleared"}
+
+
 @app.get("/api/chat/history/{session_id}")
 def get_chat_history(session_id: str, db: Session = Depends(get_db)):
     """Retrieves conversation history for a given session."""

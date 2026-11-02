@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Send,
   Mic,
@@ -15,12 +15,18 @@ import {
   FileText,
   CornerDownLeft,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  XCircle,
+  Files
 } from 'lucide-react';
 import { speechEngine } from '../utils/speech';
 
 export default function ChatInterface({
   messages,
+  documents = [],
   onSendMessage,
   isLoading,
   currentPipelineStage,
@@ -30,7 +36,9 @@ export default function ChatInterface({
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
+  const [speechError, setSpeechError] = useState(null);
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
+  const [isPipelineExpanded, setIsPipelineExpanded] = useState(false); // Collapsed by default per user request
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -39,9 +47,11 @@ export default function ChatInterface({
   }, [messages, isLoading, interimText]);
 
   // Voice Input Handler (Web Speech API)
-  const toggleListening = () => {
+  const toggleListening = async () => {
+    setSpeechError(null);
+
     if (!speechEngine.isRecognitionSupported()) {
-      alert("Browser Speech Recognition is not supported. Please use Google Chrome or Microsoft Edge.");
+      setSpeechError("Browser Speech Recognition is not supported. Please use Google Chrome or Microsoft Edge.");
       return;
     }
 
@@ -53,19 +63,22 @@ export default function ChatInterface({
       setIsListening(true);
       setInterimText('');
 
-      speechEngine.startListening({
+      await speechEngine.startListening({
         onInterim: (text) => {
           setInterimText(text);
+          setSpeechError(null);
         },
         onFinal: (text) => {
           setInputText((prev) => (prev ? `${prev} ${text}` : text));
           setInterimText('');
           setIsListening(false);
+          setSpeechError(null);
         },
-        onError: (err) => {
-          console.warn("Speech recognition error:", err);
+        onError: (errMessage) => {
+          console.warn("Speech recognition error:", errMessage);
           setIsListening(false);
           setInterimText('');
+          setSpeechError(errMessage);
         },
         onEnd: () => {
           setIsListening(false);
@@ -94,6 +107,7 @@ export default function ChatInterface({
     if (!inputText.trim() || isLoading) return;
     const query = inputText.trim();
     setInputText('');
+    setSpeechError(null);
     onSendMessage(query);
   };
 
@@ -104,28 +118,37 @@ export default function ChatInterface({
     }
   };
 
-  const samplePrompts = [
-    {
-      title: "Annual Leave Policy",
-      domain: "HR",
-      query: "How many days of paid Annual Leave and Casual Leave do full-time employees receive?",
-    },
-    {
-      title: "Attendance Regulations",
-      domain: "Academic",
-      query: "What is the minimum attendance requirement and what are the condonation rules?",
-    },
-    {
-      title: "Confidence Calibration",
-      domain: "Architecture",
-      query: "How is retrieval confidence calibrated using FlashRank cross-encoder and Sigmoid?",
-    },
-    {
-      title: "Coreference & Comparison",
-      domain: "Multi-turn",
-      query: "What is the sick leave policy and how does it compare to casual leave?",
-    },
-  ];
+  // Dynamically compute suggestions strictly from currently active uploaded documents
+  const dynamicSuggestions = useMemo(() => {
+    if (!documents || documents.length === 0) return [];
+
+    return documents.slice(0, 4).map((doc) => {
+      const name = doc.filename;
+      const lower = name.toLowerCase();
+      const domain = doc.domain_category || 'General';
+
+      let title = name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+
+      let query = `What are the key points and details in ${name}?`;
+      if (lower.includes('hr') || lower.includes('leave') || lower.includes('policy')) {
+        query = `How many days of annual leave and casual leave are specified in ${name}?`;
+      } else if (lower.includes('student') || lower.includes('handbook') || lower.includes('academic') || lower.includes('regulation')) {
+        query = `What are the attendance requirements and condonation rules in ${name}?`;
+      } else if (lower.includes('faq') || lower.includes('csv')) {
+        query = `What are the frequently asked questions and troubleshooting steps in ${name}?`;
+      } else if (lower.includes('cloud') || lower.includes('arch') || lower.includes('tech')) {
+        query = `What are the architectural patterns and tech stack components in ${name}?`;
+      }
+
+      return {
+        title,
+        domain,
+        filename: name,
+        query,
+      };
+    });
+  }, [documents]);
 
   const getConfidenceBadge = (confidence) => {
     const val = Number(confidence || 0);
@@ -158,18 +181,47 @@ export default function ChatInterface({
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0B0F19] relative overflow-hidden">
       
-      {/* Agent Workflow Ribbon */}
-      <div className="px-4 py-2 border-b border-[#1F2937] bg-[#111827] flex items-center justify-between text-xs">
-        <div className="flex items-center space-x-2 text-slate-400">
-          <span className="font-semibold text-slate-300">LangGraph Pipeline:</span>
-          <div className="hidden sm:flex items-center space-x-1.5 font-mono text-[11px]">
+      {/* LangGraph Pipeline Dropdown Header (Collapsible) */}
+      <div className="border-b border-[#1F2937] bg-[#111827]">
+        <div className="px-4 py-2 flex items-center justify-between text-xs">
+          
+          {/* Dropdown Toggle Button */}
+          <button
+            onClick={() => setIsPipelineExpanded(!isPipelineExpanded)}
+            className="flex items-center space-x-2 text-slate-300 hover:text-white transition group focus:outline-none"
+            title="Click to hide or show LangGraph pipeline stages"
+          >
+            <span className="font-semibold text-slate-200">LangGraph Pipeline:</span>
+            <span className="text-[11px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1 font-mono">
+              5 Agents
+              {isPipelineExpanded ? (
+                <ChevronUp className="w-3.5 h-3.5 text-blue-400" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-blue-400" />
+              )}
+            </span>
+          </button>
+
+          {/* Active Domain Scope Indicator */}
+          <div className="flex items-center space-x-2">
+            <span className="text-slate-400 text-[11px]">Scope:</span>
+            <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              {activeDomain}
+            </span>
+          </div>
+
+        </div>
+
+        {/* Collapsible Pipeline Stages Ribbon */}
+        {isPipelineExpanded && (
+          <div className="px-4 py-2 bg-[#0B0F19] border-t border-[#1F2937] flex items-center space-x-2 font-mono text-[11px] overflow-x-auto transition-all animate-fadeIn">
             {pipelineStages.map((st, i) => (
               <React.Fragment key={st.id}>
                 <span
-                  className={`px-2 py-0.5 rounded transition ${
+                  className={`px-2 py-0.5 rounded whitespace-nowrap transition ${
                     isLoading
                       ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                      : 'bg-[#0B0F19] text-slate-400 border border-[#1F2937]'
+                      : 'bg-[#111827] text-slate-300 border border-[#1F2937]'
                   }`}
                 >
                   {st.name}
@@ -180,14 +232,7 @@ export default function ChatInterface({
               </React.Fragment>
             ))}
           </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <span className="text-slate-400 text-[11px]">Scope:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-            {activeDomain}
-          </span>
-        </div>
+        )}
       </div>
 
       {/* Messages Stream */}
@@ -204,35 +249,45 @@ export default function ChatInterface({
                 AI-Powered Intelligent Query Resolution
               </h2>
               <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
-                Domain-agnostic voice and text conversational assistant powered by a 5-Agent LangGraph architecture, FastEmbed vectors, and FlashRank cross-encoder reranking.
+                Conversational assistant powered by a 5-Agent LangGraph architecture, FastEmbed vectors, and FlashRank cross-encoder reranking.
               </p>
             </div>
 
-            {/* Suggested Prompts */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">
-              {samplePrompts.map((p, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setInputText(p.query);
-                    inputRef.current?.focus();
-                  }}
-                  className="rounded-lg p-3.5 bg-[#111827] border border-[#1F2937] hover:border-blue-500/50 text-left transition group"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-blue-400 group-hover:text-blue-300">
-                      {p.title}
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#0B0F19] text-slate-400 uppercase font-mono border border-[#1F2937]">
-                      {p.domain}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
-                    {p.query}
-                  </p>
-                </button>
-              ))}
-            </div>
+            {/* Dynamic Suggestions Generated from Uploaded Documents */}
+            {dynamicSuggestions.length === 0 ? (
+              <div className="rounded-xl p-6 bg-[#111827] border border-[#1F2937] text-center max-w-md mx-auto space-y-2">
+                <Files className="w-8 h-8 text-slate-500 mx-auto opacity-50" />
+                <h4 className="text-sm font-semibold text-slate-200">Knowledge Base is Empty</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  No documents currently indexed. Upload files in the sidebar or click <strong className="text-blue-400">Load Sample KB</strong> to generate contextual queries.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">
+                {dynamicSuggestions.map((p, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setInputText(p.query);
+                      inputRef.current?.focus();
+                    }}
+                    className="rounded-lg p-3.5 bg-[#111827] border border-[#1F2937] hover:border-blue-500/50 text-left transition group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-blue-400 group-hover:text-blue-300 truncate max-w-[180px]">
+                        {p.title}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#0B0F19] text-slate-400 uppercase font-mono border border-[#1F2937]">
+                        {p.domain}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+                      {p.query}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           messages.map((msg, index) => {
@@ -394,7 +449,23 @@ export default function ChatInterface({
               onClick={toggleListening}
               className="text-[10px] text-slate-400 hover:text-white"
             >
-              Cancel
+              Done / Stop
+            </button>
+          </div>
+        )}
+
+        {/* Speech Error Alert Banner */}
+        {speechError && (
+          <div className="mb-2 max-w-2xl mx-auto px-3 py-1.5 rounded-md bg-rose-950/40 border border-rose-500/40 flex items-center justify-between text-xs text-rose-300 animate-fadeIn">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{speechError}</span>
+            </div>
+            <button
+              onClick={() => setSpeechError(null)}
+              className="text-slate-400 hover:text-white ml-2"
+            >
+              <XCircle className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
