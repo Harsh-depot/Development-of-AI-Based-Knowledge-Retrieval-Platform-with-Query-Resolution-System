@@ -181,9 +181,9 @@ export default function ChatInterface({
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0B0F19] relative overflow-hidden">
       
-      {/* LangGraph Pipeline Dropdown Header (Collapsible) */}
+      {/* LangGraph Pipeline Dropdown Header (Collapsible) — matched height with Sidebar header */}
       <div className="border-b border-[#1F2937] bg-[#111827]">
-        <div className="px-4 py-2 flex items-center justify-between text-xs">
+        <div className="h-11 px-4 flex items-center justify-between text-xs">
           
           {/* Dropdown Toggle Button */}
           <button

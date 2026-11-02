@@ -68,8 +68,8 @@ export default function Sidebar({
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}
     >
-      {/* Sidebar Header */}
-      <div className="p-4 border-b border-[#1F2937] flex items-center justify-between">
+      {/* Sidebar Header — matched height with ChatInterface sub-header */}
+      <div className="h-11 px-4 border-b border-[#1F2937] flex items-center justify-between bg-[#111827]">
         <div className="flex items-center space-x-2">
           <FolderOpen className="w-4 h-4 text-blue-400" />
           <h2 className="text-xs font-bold text-slate-200 tracking-wider uppercase">Knowledge Base</h2>
