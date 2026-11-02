@@ -23,21 +23,16 @@ export default function Navbar({
     <header className="sticky top-0 z-40 w-full bg-[#111827] border-b border-[#1F2937]">
       <div className="w-full px-4 sm:px-6 h-16 flex items-center justify-between">
 
-        {/* Brand & Project Identity */}
-        <div className="flex items-center space-x-3">
+        {/* Brand & Project Identity — Clean, vertically centered 2-line layout */}
+        <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-600 text-white font-bold text-xl border border-blue-500/40 shadow-sm flex-shrink-0">
             <Sparkles className="w-5 h-5 text-blue-100" />
           </div>
           <div className="flex flex-col justify-center">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-slate-100 tracking-tight leading-tight">
-                Intelligent Query Resolution System
-              </h1>
-              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 leading-none">
-                Enterprise RAG · 5-Agent
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 hidden sm:block leading-normal">
+            <h1 className="text-base sm:text-lg font-bold text-slate-100 tracking-tight whitespace-nowrap leading-tight">
+              Intelligent Query Resolution System
+            </h1>
+            <p className="text-[12px] text-slate-400 hidden sm:block leading-tight mt-1 whitespace-nowrap">
               LangGraph State Machine · Qdrant · FastEmbed · FlashRank Reranker
             </p>
           </div>
