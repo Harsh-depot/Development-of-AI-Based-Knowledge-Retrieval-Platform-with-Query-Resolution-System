@@ -102,6 +102,7 @@ class AgentState(TypedDict):
     confidence_score: float
     is_knowledge_gap: bool
     domain_filter: Optional[str]
+    user_id: Optional[str]  # JWT-authenticated user id for scoped Qdrant retrieval
 
 
 # ==============================================================================
@@ -306,12 +307,14 @@ def retrieval_rerank_node(state: AgentState) -> Dict[str, Any]:
     """
     query = state.get("standalone_query") or state.get("raw_query", "")
     domain = state.get("domain_filter")
+    user_id = state.get("user_id")
 
-    # Step A: Top-15 Retrieval from Qdrant
+    # Step A: Top-15 Retrieval from Qdrant (scoped to user if user_id present)
     candidates = ingestion_engine.search_candidates(
         query=query,
         top_k=settings.RETRIEVAL_TOP_K,
         domain_filter=domain,
+        user_id=user_id,
     )
 
     # Step B: FlashRank Cross-Encoder Precision Reranking & Sigmoid Calibration

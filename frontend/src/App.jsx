@@ -1,9 +1,27 @@
+/**
+ * App.jsx — Root Application Component
+ * ======================================
+ * Handles top-level routing:
+ *   /login    → Login screen (public)
+ *   /register → Register screen (public)
+ *   /         → Main chat interface (protected — requires JWT)
+ *
+ * Unauthenticated users visiting "/" are redirected to "/login".
+ * Authenticated users visiting "/login" or "/register" are redirected to "/".
+ */
+
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
+
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import TransparencyPanel from './components/TransparencyPanel';
 import AnalyticsModal from './components/AnalyticsModal';
+import Login from './components/auth/Login';
+import Register from './components/auth/Register';
+
 import {
   fetchHealth,
   fetchDocuments,
@@ -16,7 +34,41 @@ import {
   seedSampleData,
 } from './utils/api';
 
-export default function App() {
+// ---------------------------------------------------------------------------
+// Protected Route wrapper
+// ---------------------------------------------------------------------------
+
+function ProtectedRoute({ children }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    // Show a minimal spinner while checking localStorage token
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#0B0F19]">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  return user ? children : <Navigate to="/login" replace />;
+}
+
+// ---------------------------------------------------------------------------
+// Public Route wrapper (redirect logged-in users to home)
+// ---------------------------------------------------------------------------
+
+function PublicRoute({ children }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  return user ? <Navigate to="/" replace /> : children;
+}
+
+// ---------------------------------------------------------------------------
+// Main Chat App (rendered when authenticated)
+// ---------------------------------------------------------------------------
+
+function ChatApp() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
   const [sessionId, setSessionId] = useState(() => {
     return localStorage.getItem('query_sys_session_id') || crypto.randomUUID();
   });
@@ -32,7 +84,7 @@ export default function App() {
   const [activeInspection, setActiveInspection] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Initial load
+  // Load initial data on mount
   useEffect(() => {
     localStorage.setItem('query_sys_session_id', sessionId);
     loadInitialData();
@@ -49,7 +101,7 @@ export default function App() {
       setDocuments(docs);
       setAnalyticsData(analytics);
     } catch (err) {
-      console.warn("Failed to load initial data:", err);
+      console.warn('Failed to load initial data:', err);
     }
   };
 
@@ -62,7 +114,6 @@ export default function App() {
       content: queryText,
       created_at: new Date().toISOString(),
     };
-
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
@@ -89,16 +140,13 @@ export default function App() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-      // Automatically inspect response in Transparency Panel
       setActiveInspection(assistantMessage);
-
-      // Refresh analytics in background
       fetchAnalytics().then(setAnalyticsData).catch(() => {});
     } catch (err) {
       const errorMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `Error resolving query: ${err.message || 'Server connection error'}. Please check if the backend service is running.`,
+        content: `Error resolving query: ${err.message || 'Server connection error'}.`,
         confidence_score: 0.0,
         is_knowledge_gap: true,
         created_at: new Date().toISOString(),
@@ -123,7 +171,7 @@ export default function App() {
   };
 
   const handleDeleteDocument = async (docId) => {
-    if (!confirm("Are you sure you want to delete this document and its indexed vectors?")) return;
+    if (!confirm('Are you sure you want to delete this document and its indexed vectors?')) return;
     try {
       await deleteDocument(docId);
       const docs = await fetchDocuments();
@@ -155,13 +203,12 @@ export default function App() {
       await deleteAnalyticsGap(gapId);
       setAnalyticsData((prev) => {
         if (!prev) return prev;
-        const updatedGaps = (prev.recent_knowledge_gaps || []).filter((g) => g.id !== gapId);
         return {
           ...prev,
           total_queries: Math.max(0, (prev.total_queries || 1) - 1),
           low_confidence_count: Math.max(0, (prev.low_confidence_count || 1) - 1),
           unanswered_count: Math.max(0, (prev.unanswered_count || 1) - 1),
-          recent_knowledge_gaps: updatedGaps,
+          recent_knowledge_gaps: (prev.recent_knowledge_gaps || []).filter((g) => g.id !== gapId),
         };
       });
     } catch (err) {
@@ -183,9 +230,13 @@ export default function App() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0B0F19] text-slate-100 overflow-hidden font-sans">
-      
       {/* Top Navbar */}
       <Navbar
         systemHealth={systemHealth}
@@ -194,11 +245,12 @@ export default function App() {
         onSeedData={handleSeedData}
         isSeeding={isSeeding}
         documentCount={documents.length}
+        user={user}
+        onLogout={handleLogout}
       />
 
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden relative">
-        
         {/* Left Sidebar */}
         <Sidebar
           documents={documents}
@@ -230,7 +282,6 @@ export default function App() {
             onClose={() => setActiveInspection(null)}
           />
         )}
-
       </div>
 
       {/* Knowledge Gap Analytics Modal */}
@@ -242,7 +293,43 @@ export default function App() {
           onClose={() => setIsAnalyticsOpen(false)}
         />
       )}
-
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Root App with Routes
+// ---------------------------------------------------------------------------
+
+export default function App() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <Login />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <PublicRoute>
+            <Register />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <ChatApp />
+          </ProtectedRoute>
+        }
+      />
+      {/* Catch-all: redirect any unknown path to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

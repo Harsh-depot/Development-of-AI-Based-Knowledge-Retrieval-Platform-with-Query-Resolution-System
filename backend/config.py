@@ -38,6 +38,11 @@ class Settings(BaseModel):
     # Relational Database (PostgreSQL Neon/Supabase or Local SQLite fallback)
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{Path(__file__).resolve().parent / 'query_system.db'}")
 
+    # JWT Authentication
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "change-this-to-a-secure-random-secret-in-production")
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+
     # RAG Tuning Parameters
     RETRIEVAL_TOP_K: int = int(os.getenv("RETRIEVAL_TOP_K", "15"))
     RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "4"))

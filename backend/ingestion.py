@@ -176,10 +176,13 @@ class IngestionEngine:
         filename: str,
         domain_category: str,
         db_session: Session,
+        user_id: Optional[str] = None,
     ) -> Document:
         """Parses document, applies RecursiveCharacterTextSplitter (chunk size: 800, overlap: 120),
 
         computes FastEmbed vectors, indexes into Qdrant, and commits to SQL DB.
+        user_id is stored in both the SQL Document record and every Qdrant point
+        payload so retrieval can be scoped per user.
         """
         pages = self.extract_document_pages(file_path, filename)
         if not pages:
@@ -188,11 +191,12 @@ class IngestionEngine:
         # Determine file type
         ext = Path(filename).suffix.lower().replace(".", "")
 
-        # Create Document record
+        # Create Document record (with optional user ownership)
         doc_record = Document(
             filename=filename,
             file_type=ext,
             domain_category=domain_category or "General",
+            user_id=user_id,
         )
         db_session.add(doc_record)
         db_session.flush()  # Populates doc_record.id
@@ -242,6 +246,7 @@ class IngestionEngine:
                         "page_number": page_num,
                         "chunk_text": clean_text,
                         "domain_category": domain_category,
+                        "user_id": user_id,  # store for per-user retrieval scoping
                     }
                 )
 
@@ -288,8 +293,16 @@ class IngestionEngine:
         query: str,
         top_k: int = None,
         domain_filter: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Embeds query using FastEmbed and searches Qdrant for top candidate chunks."""
+        """Embeds query using FastEmbed and searches Qdrant for top candidate chunks.
+        
+        Args:
+            query: Natural language query string.
+            top_k: Number of candidates to retrieve (defaults to RETRIEVAL_TOP_K).
+            domain_filter: Optional domain category constraint.
+            user_id: If provided, restricts search to chunks uploaded by this user.
+        """
         top_k = top_k or settings.RETRIEVAL_TOP_K
 
         # Generate query embedding
@@ -298,17 +311,24 @@ class IngestionEngine:
             return []
         query_vector = query_embeddings[0].tolist()
 
-        # Optional Qdrant filter
-        qdrant_filter = None
+        # Build Qdrant filter conditions
+        must_conditions = []
         if domain_filter and domain_filter.lower() != "all":
-            qdrant_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="domain_category",
-                        match=MatchValue(value=domain_filter),
-                    )
-                ]
+            must_conditions.append(
+                FieldCondition(
+                    key="domain_category",
+                    match=MatchValue(value=domain_filter),
+                )
             )
+        if user_id:
+            must_conditions.append(
+                FieldCondition(
+                    key="user_id",
+                    match=MatchValue(value=user_id),
+                )
+            )
+
+        qdrant_filter = Filter(must=must_conditions) if must_conditions else None
 
         # Search in Qdrant
         try:
