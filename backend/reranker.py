@@ -1,7 +1,6 @@
 import math
 import logging
 from typing import List, Dict, Any, Tuple
-from flashrank import Ranker, RerankRequest
 from config import settings
 
 logger = logging.getLogger("reranker")
@@ -9,35 +8,40 @@ logger = logging.getLogger("reranker")
 
 class RerankerEngine:
     """Stage-2 Precision Cross-Encoder Reranker using FlashRank (ms-marco-MiniLM-L-6-v2)
-
     and Sigmoid-calibrated confidence scoring: C = 1 / (1 + exp(-z)).
+    Uses lazy loading to stay well within Render's 512 MB memory limit.
     """
 
     def __init__(self, model_name: str = None):
         self.model_name = model_name or settings.FLASHRANK_MODEL_NAME
-        try:
-            self.ranker = Ranker(model_name=self.model_name)
-            logger.info(f"Initialized FlashRank model: {self.model_name}")
-        except Exception as e:
-            logger.warning(f"Failed to load FlashRank with {self.model_name}: {e}. Falling back to default Ranker.")
+        self._ranker = None
+        self._ranker_initialized = False
+
+    @property
+    def ranker(self):
+        """Lazy-loaded FlashRank cross-encoder to minimize idle RAM footprint."""
+        if not self._ranker_initialized:
+            self._ranker_initialized = True
             try:
-                self.ranker = Ranker()
-            except Exception as e2:
-                logger.error(f"Failed to load fallback Ranker: {e2}")
-                self.ranker = None
+                from flashrank import Ranker
+                self._ranker = Ranker(model_name=self.model_name)
+                logger.info(f"Initialized FlashRank model: {self.model_name}")
+            except Exception as e:
+                logger.warning(f"Failed to load FlashRank with {self.model_name}: {e}. Falling back to default Ranker.")
+                try:
+                    from flashrank import Ranker
+                    self._ranker = Ranker()
+                except Exception as e2:
+                    logger.error(f"Failed to load fallback Ranker: {e2}")
+                    self._ranker = None
+        return self._ranker
 
     @staticmethod
     def calculate_sigmoid_confidence(raw_score: float) -> float:
         """Computes calibrated Sigmoid confidence score C = 1 / (1 + exp(-z)).
-
         Clamped between -15 and 15 to prevent floating-point overflow.
         """
-        # If score is already in [0, 1] range (some rankers return softmax probabilities),
-        # we can calibrate logit inverse or interpret directly.
-        # But per specification: C = 1 / (1 + exp(-z))
         z = max(min(float(raw_score), 15.0), -15.0)
-        # If raw_score is already a probability [0.0, 1.0], convert to logit first if appropriate,
-        # or calculate standard sigmoid:
         confidence = 1.0 / (1.0 + math.exp(-z))
         return round(float(confidence), 4)
 
@@ -49,7 +53,6 @@ class RerankerEngine:
         threshold: float = None,
     ) -> Tuple[List[Dict[str, Any]], float, bool]:
         """Reranks candidate chunks using FlashRank cross-encoder,
-
         calibrates confidence using Sigmoid, and filters by threshold (0.40).
 
         Returns:
@@ -80,17 +83,15 @@ class RerankerEngine:
             )
 
         reranked_list = []
-        if self.ranker:
+        active_ranker = self.ranker
+        if active_ranker:
             try:
+                from flashrank import RerankRequest
                 rerank_request = RerankRequest(query=query, passages=passages)
-                results = self.ranker.rerank(rerank_request)
+                results = active_ranker.rerank(rerank_request)
                 for res in results:
                     raw_score = float(res.get("score", 0.0))
-                    # FlashRank returns a score (often 0.0-1.0 or logits).
-                    # Calibrate confidence score:
-                    # If score is already between 0 and 1, we can map using logit transformation or sigmoid
                     if 0.0 <= raw_score <= 1.0:
-                        # Logit transform then sigmoid, or raw_score directly
                         confidence = round(raw_score, 4)
                     else:
                         confidence = self.calculate_sigmoid_confidence(raw_score)
@@ -148,5 +149,5 @@ class RerankerEngine:
         return results
 
 
-# Global singleton instance
+# Global singleton instance (lazy properties keep memory low until used)
 reranker_engine = RerankerEngine()

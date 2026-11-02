@@ -3,11 +3,7 @@ import uuid
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-import pypdf
-import docx
-import pandas as pd
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from fastembed import TextEmbedding
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from sqlalchemy.orm import Session
@@ -15,7 +11,12 @@ from sqlalchemy.orm import Session
 from config import settings
 from database import Document, Chunk, get_db
 
-# Suppress Hugging Face symlink warnings on Windows
+# Restrict threading to 1 thread per library to stay within Render's 512MB RAM
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 logger = logging.getLogger("ingestion")
@@ -24,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 
 class IngestionEngine:
     def __init__(self):
-        self.embedding_model = TextEmbedding(model_name=settings.FASTEMBED_MODEL_NAME)
+        self._embedding_model = None
         self.vector_dim = 384  # bge-small-en-v1.5 vector dimensionality
         self.collection_name = settings.QDRANT_COLLECTION_NAME
 
@@ -41,6 +42,15 @@ class IngestionEngine:
             self.qdrant_client = QdrantClient(path=settings.LOCAL_QDRANT_PATH)
 
         self._ensure_collection()
+
+    @property
+    def embedding_model(self):
+        """Lazy-loaded FastEmbed model (single-thread) to stay well within 512MB RAM."""
+        if self._embedding_model is None:
+            from fastembed import TextEmbedding
+            logger.info(f"Lazy-loading FastEmbed model: {settings.FASTEMBED_MODEL_NAME} (threads=1)...")
+            self._embedding_model = TextEmbedding(model_name=settings.FASTEMBED_MODEL_NAME, threads=1)
+        return self._embedding_model
 
     def _ensure_collection(self):
         """Ensures the Qdrant vector collection exists."""
@@ -89,6 +99,7 @@ class IngestionEngine:
     @staticmethod
     def parse_pdf(file_path: str) -> List[Dict[str, Any]]:
         """Parses PDF preserving page numbers."""
+        import pypdf
         pages_content = []
         reader = pypdf.PdfReader(file_path)
         for i, page in enumerate(reader.pages):
@@ -100,6 +111,7 @@ class IngestionEngine:
     @staticmethod
     def parse_docx(file_path: str) -> List[Dict[str, Any]]:
         """Parses DOCX documents."""
+        import docx
         doc = docx.Document(file_path)
         full_text = []
         for para in doc.paragraphs:
@@ -128,6 +140,7 @@ class IngestionEngine:
     @staticmethod
     def parse_csv(file_path: str) -> List[Dict[str, Any]]:
         """Parses FAQ or tabular CSV files into contextual question-answer units."""
+        import pandas as pd
         df = pd.read_csv(file_path)
         results = []
         col_names = [c.lower() for c in df.columns]
@@ -280,6 +293,13 @@ class IngestionEngine:
         db_session.add_all(all_chunk_records)
         db_session.commit()
         db_session.refresh(doc_record)
+
+        # Release temporary vector memory
+        del points
+        del embeddings
+        del chunk_texts_for_embedding
+        import gc
+        gc.collect()
 
         logger.info(f"Successfully indexed document '{filename}' with {len(all_chunk_records)} chunks.")
         return doc_record
