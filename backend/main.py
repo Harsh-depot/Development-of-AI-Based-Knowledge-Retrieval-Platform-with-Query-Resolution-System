@@ -23,8 +23,9 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 import jwt
-from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query, status
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy.orm import Session
@@ -69,7 +70,24 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all exception handler that guarantees CORS headers are always returned on 500 errors."""
+    logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Server error: {str(exc)}"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 # ==============================================================================
 # OAuth2 Bearer Scheme & Auth Dependency

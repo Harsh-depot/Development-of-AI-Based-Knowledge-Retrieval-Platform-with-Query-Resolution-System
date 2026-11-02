@@ -64,11 +64,20 @@ export async function fetchHealth() {
 }
 
 export async function loginUser(email, password) {
-  const res = await apiFetch('/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  }, false);
+  let res;
+  try {
+    res = await apiFetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }, false);
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
+      throw new Error('Connecting to server... Please wait a few seconds while the backend service starts up and try again.');
+    }
+    throw err;
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || 'Login failed.');
@@ -77,11 +86,20 @@ export async function loginUser(email, password) {
 }
 
 export async function registerUser(email, password, fullName = null) {
-  const res = await apiFetch('/api/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, full_name: fullName }),
-  }, false);
+  let res;
+  try {
+    res = await apiFetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, full_name: fullName }),
+    }, false);
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
+      throw new Error('Connecting to server... Please wait a few seconds while the backend service starts up and try again.');
+    }
+    throw err;
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || 'Registration failed.');

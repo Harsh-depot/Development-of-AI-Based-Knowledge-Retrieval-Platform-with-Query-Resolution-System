@@ -1,33 +1,37 @@
 """
 security.py — JWT Authentication & Password Hashing Utilities
 =============================================================
-Provides password hashing via bcrypt and JWT token generation/validation.
+Provides password hashing via direct bcrypt and JWT token generation/validation.
+Does not depend on deprecated passlib, avoiding bcrypt 4.1+/5.0+ compatibility bugs.
 All functions are pure utilities; FastAPI dependency injection is in main.py.
 """
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from config import settings
 
 # ---------------------------------------------------------------------------
-# Password Hashing
+# Password Hashing (Direct bcrypt — robust across all Python versions)
 # ---------------------------------------------------------------------------
 
-# bcrypt context — automatically handles salting
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def hash_password(plain_password: str) -> str:
-    """Hash a plain-text password using bcrypt."""
-    return pwd_context.hash(plain_password)
+    """Hash a plain-text password using bcrypt (truncating to 72 bytes safely)."""
+    password_bytes = plain_password.encode("utf-8")[:72]
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain-text password against its bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        password_bytes = plain_password.encode("utf-8")[:72]
+        hash_bytes = hashed_password.encode("utf-8")
+        return bcrypt.checkpw(password_bytes, hash_bytes)
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
