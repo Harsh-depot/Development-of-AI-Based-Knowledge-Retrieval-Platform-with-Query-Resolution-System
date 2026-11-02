@@ -1,3 +1,13 @@
+---
+title: AI-Powered Intelligent Query Resolution System
+emoji: ⚡
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # AI-Powered Intelligent Query Resolution System
 ### Infosys Internship Project • Complete Milestone 1–4 Enterprise Implementation
 **Lead Engineer:** Harshvardhan Raj | **Total Budget:** Exactly $0.00 (Zero paid APIs, no credit card required)
