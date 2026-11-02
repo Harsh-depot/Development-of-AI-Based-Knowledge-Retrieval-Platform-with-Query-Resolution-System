@@ -53,6 +53,21 @@ class IngestionEngine:
                     collection_name=self.collection_name,
                     vectors_config=VectorParams(size=self.vector_dim, distance=Distance.COSINE),
                 )
+            # Create payload indexes for fast filtering and deletion
+            try:
+                from qdrant_client.models import PayloadSchemaType
+                self.qdrant_client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="document_id",
+                    field_schema=PayloadSchemaType.KEYWORD,
+                )
+                self.qdrant_client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="domain_category",
+                    field_schema=PayloadSchemaType.KEYWORD,
+                )
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Error connecting to Qdrant Cloud ({e}). Falling back to local persistent Qdrant storage.")
             try:
@@ -335,29 +350,45 @@ class IngestionEngine:
 
     def delete_document(self, document_id: str, db_session: Session) -> bool:
         """Deletes a document and its chunks from both Qdrant and SQL DB."""
-        try:
-            # Delete points from Qdrant
-            self.qdrant_client.delete(
-                collection_name=self.collection_name,
-                points_selector=Filter(
-                    must=[
-                        FieldCondition(
-                            key="document_id",
-                            match=MatchValue(value=document_id),
-                        )
-                    ]
-                ),
-            )
-
-            # Delete from DB
-            doc = db_session.query(Document).filter(Document.id == document_id).first()
-            if doc:
-                db_session.delete(doc)
-                db_session.commit()
-                return True
+        # 1. Query document record from DB
+        doc = db_session.query(Document).filter(Document.id == document_id).first()
+        if not doc:
+            logger.warning(f"Document {document_id} not found in database.")
             return False
+
+        # 2. Retrieve all chunk IDs for this document
+        chunk_rows = db_session.query(Chunk.id).filter(Chunk.document_id == document_id).all()
+        chunk_ids = [str(r[0]) for r in chunk_rows]
+
+        # 3. Delete points from Qdrant by Point IDs (failsafe, requires no payload index)
+        if chunk_ids:
+            try:
+                self.qdrant_client.delete(
+                    collection_name=self.collection_name,
+                    points_selector=chunk_ids,
+                )
+                logger.info(f"Deleted {len(chunk_ids)} vector points from Qdrant for document {document_id}")
+            except Exception as q_err:
+                logger.warning(f"Failed to delete points by ID from Qdrant ({q_err}). Trying filter deletion.")
+                try:
+                    self.qdrant_client.delete(
+                        collection_name=self.collection_name,
+                        points_selector=Filter(
+                            must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
+                        ),
+                    )
+                except Exception as q_err2:
+                    logger.error(f"Could not delete points from Qdrant: {q_err2}")
+
+        # 4. Explicitly delete child chunks first, then document to prevent FK violations
+        try:
+            db_session.query(Chunk).filter(Chunk.document_id == document_id).delete(synchronize_session=False)
+            db_session.delete(doc)
+            db_session.commit()
+            logger.info(f"Successfully deleted document '{doc.filename}' ({document_id}) from database.")
+            return True
         except Exception as e:
-            logger.error(f"Error deleting document {document_id}: {e}")
+            logger.error(f"Error deleting document {document_id} from DB: {e}")
             db_session.rollback()
             return False
 
