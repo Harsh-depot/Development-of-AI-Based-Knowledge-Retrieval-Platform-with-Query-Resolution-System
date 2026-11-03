@@ -205,19 +205,19 @@ def conversation_memory_node(state: AgentState) -> Dict[str, Any]:
     # High-quality Deterministic Rule-based / Heuristic Fallback
     resolved_query = raw_query
     
-    # 1. Resolve first-person pronouns
+    # 1. Resolve first-person pronouns dynamically using user's registered name
     if has_first_person:
-        candidate = user_name if user_name else "Harshvardhan Raj"
+        candidate = user_name if user_name and user_name.strip() else "the user"
         import re
         resolved_query = re.sub(r'\bmy\b', f"{candidate}'s", resolved_query, flags=re.IGNORECASE)
         resolved_query = re.sub(r'\bmine\b', f"{candidate}'s", resolved_query, flags=re.IGNORECASE)
         resolved_query = re.sub(r'\bme\b', candidate, resolved_query, flags=re.IGNORECASE)
 
-    # 2. Resolve generic project references
+    # 2. Resolve generic project references dynamically from user's uploaded documents
     if has_generic_project:
         proj_name = None
         for doc in user_docs:
-            if any(k in doc.lower() for k in ["synopsis", "project", "nexora"]):
+            if any(k in doc.lower() for k in ["synopsis", "project", "overview", "report", "proposal", "doc"]):
                 proj_name = doc.split("_")[0].split(".")[0]
                 break
         if proj_name:
