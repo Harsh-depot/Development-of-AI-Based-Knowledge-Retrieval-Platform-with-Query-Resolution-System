@@ -20,7 +20,8 @@ import {
   ChevronUp,
   AlertCircle,
   XCircle,
-  Files
+  Files,
+  RefreshCw,
 } from 'lucide-react';
 import { speechEngine } from '../utils/speech';
 
@@ -32,6 +33,8 @@ export default function ChatInterface({
   currentPipelineStage,
   onInspectResponse,
   activeDomain,
+  onSeedData,
+  isSeeding,
 }) {
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -255,12 +258,22 @@ export default function ChatInterface({
 
             {/* Dynamic Suggestions Generated from Uploaded Documents */}
             {dynamicSuggestions.length === 0 ? (
-              <div className="rounded-xl p-6 bg-[#111827] border border-[#1F2937] text-center max-w-md mx-auto space-y-2">
+              <div className="rounded-xl p-6 bg-[#111827] border border-[#1F2937] text-center max-w-md mx-auto space-y-3">
                 <Files className="w-8 h-8 text-slate-500 mx-auto opacity-50" />
                 <h4 className="text-sm font-semibold text-slate-200">Knowledge Base is Empty</h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  No documents currently indexed. Upload files in the sidebar or click <strong className="text-blue-400">Load Sample KB</strong> to generate contextual queries.
+                  No documents currently indexed. Upload files in the sidebar, or load our pre-configured sample documents to get started.
                 </p>
+                {onSeedData && (
+                  <button
+                    onClick={onSeedData}
+                    disabled={isSeeding}
+                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition disabled:opacity-50 shadow-sm"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSeeding ? 'animate-spin' : ''}`} />
+                    <span>{isSeeding ? 'Indexing Sample Knowledge Base...' : 'Load Sample Knowledge Base'}</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">

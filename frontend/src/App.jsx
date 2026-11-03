@@ -261,6 +261,8 @@ function ChatApp() {
           isUploading={isUploading}
           isOpen={isSidebarOpen}
           onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+          onSeedData={handleSeedData}
+          isSeeding={isSeeding}
         />
 
         {/* Center Chat Interface */}
@@ -272,6 +274,8 @@ function ChatApp() {
             isLoading={isLoading}
             onInspectResponse={(msg) => setActiveInspection(msg)}
             activeDomain={activeDomain}
+            onSeedData={handleSeedData}
+            isSeeding={isSeeding}
           />
         </main>
 

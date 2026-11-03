@@ -637,7 +637,7 @@ def seed_sample_data(
                 .filter(Document.filename == fname, Document.user_id == current_user.id)
                 .first()
             )
-            if existing and force:
+            if existing and (force or existing.chunk_count == 0):
                 db.delete(existing)
                 db.commit()
                 existing = None

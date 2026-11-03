@@ -22,6 +22,8 @@ export default function Sidebar({
   isUploading,
   isOpen,
   onToggle,
+  onSeedData,
+  isSeeding,
 }) {
   const [selectedDomain, setSelectedDomain] = useState('General');
   const [dragOver, setDragOver] = useState(false);
@@ -153,12 +155,18 @@ export default function Sidebar({
       {/* Document List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {documents.length === 0 ? (
-          <div className="py-8 text-center text-slate-500 text-xs">
-            <Files className="w-8 h-8 mx-auto mb-2 opacity-30 text-slate-400" />
+          <div className="py-8 text-center text-slate-500 text-xs space-y-2">
+            <Files className="w-8 h-8 mx-auto opacity-30 text-slate-400" />
             <p>No documents indexed yet.</p>
-            <p className="text-[11px] text-slate-600 mt-1">
-              Click "Load Sample KB" or upload above.
-            </p>
+            {onSeedData && (
+              <button
+                onClick={onSeedData}
+                disabled={isSeeding}
+                className="text-[11px] text-blue-400 hover:text-blue-300 underline font-medium transition disabled:opacity-50 block mx-auto"
+              >
+                {isSeeding ? 'Seeding Sample KB...' : 'Click to Load Sample KB'}
+              </button>
+            )}
           </div>
         ) : (
           documents.map((doc) => (
