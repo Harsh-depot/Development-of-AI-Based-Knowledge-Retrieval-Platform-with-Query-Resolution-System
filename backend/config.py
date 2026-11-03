@@ -19,11 +19,11 @@ class Settings(BaseModel):
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     
     # Models
-    GROQ_MEMORY_MODEL: str = os.getenv("GROQ_MEMORY_MODEL", "llama-3.1-8b-instant")
-    GROQ_UNDERSTANDING_MODEL: str = os.getenv("GROQ_UNDERSTANDING_MODEL", "llama-3.1-8b-instant")
-    GROQ_CLARIFICATION_MODEL: str = os.getenv("GROQ_CLARIFICATION_MODEL", "llama-3.3-70b-versatile")
-    GROQ_GENERATION_MODEL: str = os.getenv("GROQ_GENERATION_MODEL", "llama-3.3-70b-versatile")
-    GOOGLE_FALLBACK_MODEL: str = os.getenv("GOOGLE_FALLBACK_MODEL", "gemini-2.5-flash")
+    GROQ_MEMORY_MODEL: str = os.getenv("GROQ_MEMORY_MODEL", "qwen/qwen3.8-27b")
+    GROQ_UNDERSTANDING_MODEL: str = os.getenv("GROQ_UNDERSTANDING_MODEL", "qwen/qwen3.8-27b")
+    GROQ_CLARIFICATION_MODEL: str = os.getenv("GROQ_CLARIFICATION_MODEL", "qwen/qwen3.8-27b")
+    GROQ_GENERATION_MODEL: str = os.getenv("GROQ_GENERATION_MODEL", "qwen/qwen3.8-27b")
+    GOOGLE_FALLBACK_MODEL: str = os.getenv("GOOGLE_FALLBACK_MODEL", "gemini-2.0-flash")
 
     # Qdrant Vector Store (Free Tier Cloud or Local disk/memory)
     QDRANT_URL: str = os.getenv("QDRANT_URL", "")
@@ -33,7 +33,7 @@ class Settings(BaseModel):
 
     # Local CPU Models ($0.00 Cost)
     FASTEMBED_MODEL_NAME: str = os.getenv("FASTEMBED_MODEL_NAME", "BAAI/bge-small-en-v1.5")
-    FLASHRANK_MODEL_NAME: str = os.getenv("FLASHRANK_MODEL_NAME", "ms-marco-MiniLM-L-6-v2")
+    FLASHRANK_MODEL_NAME: str = os.getenv("FLASHRANK_MODEL_NAME", "ms-marco-MiniLM-L-12-v2")
 
     # Relational Database (PostgreSQL Neon/Supabase or Local SQLite fallback)
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{Path(__file__).resolve().parent / 'query_system.db'}")

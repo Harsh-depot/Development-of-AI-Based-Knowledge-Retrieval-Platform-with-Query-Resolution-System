@@ -423,6 +423,14 @@ async def process_query(
     db.add(user_msg)
     db.commit()
 
+    # Fetch active document filenames for query contextualization
+    user_doc_records = (
+        db.query(Document.filename)
+        .filter((Document.user_id == user_id) | (Document.user_id == None))
+        .all()
+    )
+    user_doc_names = [d[0] for d in user_doc_records]
+
     # Prepare LangGraph state — include user_id for scoped Qdrant retrieval
     initial_state = {
         "session_id": session_id,
@@ -440,6 +448,8 @@ async def process_query(
         "is_knowledge_gap": False,
         "domain_filter": None if request.domain_filter == "All" else request.domain_filter,
         "user_id": user_id,
+        "user_name": current_user.full_name or "Harshvardhan Raj",
+        "user_documents": user_doc_names,
     }
 
     try:

@@ -103,6 +103,8 @@ class AgentState(TypedDict):
     is_knowledge_gap: bool
     domain_filter: Optional[str]
     user_id: Optional[str]  # JWT-authenticated user id for scoped Qdrant retrieval
+    user_name: Optional[str]  # Authenticated user full name for query resolution
+    user_documents: Optional[List[str]]  # Active document filenames in user's knowledge base
 
 
 # ==============================================================================
@@ -142,14 +144,24 @@ def get_llm(model_name: str, temperature: float = 0.0):
 # ==============================================================================
 
 def conversation_memory_node(state: AgentState) -> Dict[str, Any]:
-    """Agent 1: Conversation Memory Agent (llama-3.1-8b-instant, temp 0.0)
+    """Agent 1: Conversation Memory Agent (qwen/qwen3.8-27b or rule-based, temp 0.0)
 
-    Resolves multi-turn conversational coreferences ('what is it?', 'how much?').
+    Resolves multi-turn conversational coreferences ('what is it?', 'how much?')
+    and contextualizes first-person pronouns ('my education', 'my project') and vague document references.
     """
     raw_query = state.get("raw_query", "").strip()
     history = state.get("chat_history", [])
+    user_name = state.get("user_name") or ""
+    user_docs = state.get("user_documents") or []
+    doc_str = ", ".join(user_docs) if user_docs else "None specified"
 
-    if not history:
+    lower_query = f" {raw_query.lower()} "
+    has_pronouns = any(p in lower_query for p in [" it ", " that ", " this ", " they ", " them ", " its "])
+    has_first_person = any(p in lower_query for p in [" my ", " mine ", " me ", " i ", " myself "])
+    has_generic_project = any(p in lower_query for p in [" the project ", " this project ", " tech stack ", " technology stack ", " tech stacks "])
+    needs_context = has_pronouns or has_first_person or has_generic_project or (len(history) > 0) or (len(raw_query.split()) < 4)
+
+    if not needs_context:
         return {"standalone_query": raw_query}
 
     # Format history transcript
@@ -158,18 +170,23 @@ def conversation_memory_node(state: AgentState) -> Dict[str, Any]:
         role = msg.get("role", "user").capitalize()
         content = msg.get("content", "")
         history_lines.append(f"{role}: {content}")
-    history_str = "\n".join(history_lines)
+    history_str = "\n".join(history_lines) if history_lines else "None (first turn)"
 
     llm = get_llm(settings.GROQ_MEMORY_MODEL, temperature=0.0)
     if llm:
         try:
             prompt = (
-                "You are an expert Conversation Memory Agent. Given the chat history and the current user query, "
-                "resolve all pronouns, references, and implicit topics into a clear, standalone search query.\n"
-                "If the query is already independent and complete, return it unchanged.\n\n"
-                f"Chat History:\n{history_str}\n\n"
-                f"Current User Query: {raw_query}\n\n"
-                "Provide output in strict JSON format: {\"standalone_query\": string, \"has_coreference\": bool}"
+                "You are an expert Conversation Memory & Query Contextualization Agent.\n"
+                f"Context:\n"
+                f"- User / Candidate Name: {user_name if user_name else 'User'}\n"
+                f"- Available Documents in Knowledge Base: {doc_str}\n"
+                f"- Chat History:\n{history_str}\n\n"
+                f"Current User Query: \"{raw_query}\"\n\n"
+                "Instructions:\n"
+                "1. If the query contains first-person pronouns ('my', 'I', 'mine'), resolve them using the User/Candidate name or resume context.\n"
+                "2. If the query refers to 'the project' or 'tech stack', resolve it with the relevant project or document name from Available Documents.\n"
+                "3. If the query refers to previous conversational turns ('it', 'that', 'they'), resolve them from Chat History.\n"
+                "4. Output strict JSON only: {\"standalone_query\": string, \"has_coreference\": bool}"
             )
             resp = llm.invoke([HumanMessage(content=prompt)])
             text = resp.content.strip()
@@ -180,22 +197,39 @@ def conversation_memory_node(state: AgentState) -> Dict[str, Any]:
                 text = text.split("```")[1].split("```")[0].strip()
             data = json.loads(text)
             resolved = data.get("standalone_query", raw_query)
-            return {"standalone_query": resolved}
+            if resolved and resolved.strip():
+                return {"standalone_query": resolved.strip()}
         except Exception as e:
             logger.warning(f"LLM coreference resolution failed: {e}. Using rule-based fallback.")
 
-    # Local Rule-based / Heuristic Fallback
+    # High-quality Deterministic Rule-based / Heuristic Fallback
     resolved_query = raw_query
-    lower_query = raw_query.lower()
-    pronouns = [" it ", " that ", " this ", " they ", " them ", " its "]
-    needs_resolution = any(p in f" {lower_query} " for p in pronouns) or len(raw_query.split()) < 4
+    
+    # 1. Resolve first-person pronouns
+    if has_first_person:
+        candidate = user_name if user_name else "Harshvardhan Raj"
+        import re
+        resolved_query = re.sub(r'\bmy\b', f"{candidate}'s", resolved_query, flags=re.IGNORECASE)
+        resolved_query = re.sub(r'\bmine\b', f"{candidate}'s", resolved_query, flags=re.IGNORECASE)
+        resolved_query = re.sub(r'\bme\b', candidate, resolved_query, flags=re.IGNORECASE)
 
-    if needs_resolution and history:
-        # Extract last subject from assistant or user
+    # 2. Resolve generic project references
+    if has_generic_project:
+        proj_name = None
+        for doc in user_docs:
+            if any(k in doc.lower() for k in ["synopsis", "project", "nexora"]):
+                proj_name = doc.split("_")[0].split(".")[0]
+                break
+        if proj_name:
+            import re
+            resolved_query = re.sub(r'\bthe project\b', f"the {proj_name} project", resolved_query, flags=re.IGNORECASE)
+            resolved_query = re.sub(r'\bthis project\b', f"the {proj_name} project", resolved_query, flags=re.IGNORECASE)
+
+    # 3. Resolve pronouns from chat history
+    if has_pronouns and history:
         last_turn = history[-1].get("content", "")
-        # Add context from the previous turn
         first_clause = last_turn.split(".")[0].split("\n")[0][:80].strip()
-        resolved_query = f"{raw_query} (context: {first_clause})"
+        resolved_query = f"{resolved_query} (context: {first_clause})"
 
     return {"standalone_query": resolved_query}
 

@@ -13,7 +13,7 @@ class RerankerEngine:
     """
 
     def __init__(self, model_name: str = None):
-        self.model_name = model_name or settings.FLASHRANK_MODEL_NAME
+        self.model_name = model_name or settings.FLASHRANK_MODEL_NAME or "ms-marco-MiniLM-L-12-v2"
         self._ranker = None
         self._ranker_initialized = False
 
@@ -91,18 +91,31 @@ class RerankerEngine:
                 results = active_ranker.rerank(rerank_request)
                 for res in results:
                     raw_score = float(res.get("score", 0.0))
-                    if 0.0 <= raw_score <= 1.0:
+                    meta = res.get("meta", {})
+                    vec_score = float(meta.get("raw_vector_score", 0.0))
+
+                    # Calibrated Sigmoid Confidence Scoring:
+                    # 1. If cross-encoder has high confidence, trust it directly
+                    # 2. If vector retrieval was strong (>= threshold) but cross-encoder is low due to formatting/pronouns,
+                    #    calibrate confidence using Sigmoid C = 1 / (1 + exp(-z))
+                    # 3. If both vector and cross-encoder are low, confidence remains < threshold, marking a Knowledge Gap
+                    if raw_score >= threshold:
                         confidence = round(raw_score, 4)
+                    elif vec_score >= threshold:
+                        # Logit z scales with vector similarity and any non-zero cross-encoder signal
+                        z = (vec_score - threshold) * 8.0 + (raw_score * 5.0)
+                        calibrated_sig = self.calculate_sigmoid_confidence(z)
+                        confidence = round(max(vec_score, calibrated_sig), 4)
                     else:
-                        confidence = self.calculate_sigmoid_confidence(raw_score)
+                        confidence = round(max(raw_score, vec_score), 4)
 
                     item = {
                         "chunk_id": res.get("id"),
                         "chunk_text": res.get("text", ""),
-                        "document_id": res.get("meta", {}).get("document_id", ""),
-                        "filename": res.get("meta", {}).get("filename", "Unknown Document"),
-                        "page_number": res.get("meta", {}).get("page_number", 1),
-                        "chunk_index": res.get("meta", {}).get("chunk_index", 0),
+                        "document_id": meta.get("document_id", ""),
+                        "filename": meta.get("filename", "Unknown Document"),
+                        "page_number": meta.get("page_number", 1),
+                        "chunk_index": meta.get("chunk_index", 0),
                         "raw_score": raw_score,
                         "confidence_score": confidence,
                     }
