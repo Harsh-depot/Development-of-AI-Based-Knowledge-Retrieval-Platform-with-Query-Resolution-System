@@ -140,6 +140,9 @@ class RerankerEngine:
         # Limit to top_k
         final_chunks = filtered_chunks[:top_k]
 
+        import gc
+        gc.collect()
+
         return final_chunks, best_confidence, is_knowledge_gap
 
     def _fallback_scoring(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

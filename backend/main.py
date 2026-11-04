@@ -383,6 +383,8 @@ async def upload_document(
                 temp_file_path.unlink()
             except Exception:
                 pass
+        import gc
+        gc.collect()
 
 
 @app.post("/api/query", response_model=QueryResponse)
@@ -653,5 +655,8 @@ def seed_sample_data(
                 seeded_docs.append({"filename": fname, "domain": domain, "chunks": doc.chunk_count})
             else:
                 seeded_docs.append({"filename": fname, "status": "already_indexed"})
+
+    import gc
+    gc.collect()
 
     return {"status": "success", "seeded_documents": seeded_docs}

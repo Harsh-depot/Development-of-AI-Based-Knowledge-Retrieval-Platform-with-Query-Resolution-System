@@ -160,6 +160,15 @@ def _run_migrations(bind_engine) -> None:
         "ALTER TABLE documents ADD COLUMN user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL",
         # query_analytics — add user_id FK column
         "ALTER TABLE query_analytics ADD COLUMN user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL",
+        # Supabase Security: Enable Row Level Security (RLS) on all public tables
+        # This resolves Supabase security advisor warnings (rls_disabled_in_public and sensitive_columns_exposed)
+        # while direct PostgreSQL connections via SQLAlchemy continue to have full access as table owner.
+        "ALTER TABLE users ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE documents ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE chunks ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE query_analytics ENABLE ROW LEVEL SECURITY",
     ]
     # SQLite uses a simplified FK syntax (no inline REFERENCES in ALTER TABLE)
     if is_sqlite:

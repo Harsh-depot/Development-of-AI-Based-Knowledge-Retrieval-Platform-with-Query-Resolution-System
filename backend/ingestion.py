@@ -18,6 +18,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["MALLOC_TRIM_THRESHOLD_"] = "65536"  # Tells glibc to return freed memory to the OS immediately
 
 logger = logging.getLogger("ingestion")
 logging.basicConfig(level=logging.INFO)
@@ -265,9 +266,9 @@ class IngestionEngine:
         if not all_chunk_records:
             raise ValueError(f"Could not generate text chunks for {filename}")
 
-        # Batch compute local CPU FastEmbed vectors
+        # Batch compute local CPU FastEmbed vectors with small batch size to prevent memory spikes
         logger.info(f"Generating FastEmbed embeddings for {len(chunk_texts_for_embedding)} chunks...")
-        embeddings = list(self.embedding_model.embed(chunk_texts_for_embedding))
+        embeddings = list(self.embedding_model.embed(chunk_texts_for_embedding, batch_size=8))
 
         # Prepare Qdrant Points
         points = []
