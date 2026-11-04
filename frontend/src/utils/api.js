@@ -112,15 +112,23 @@ export async function registerUser(email, password, fullName = null) {
 // ---------------------------------------------------------------------------
 
 export async function sendQuery({ query, sessionId, domainFilter }) {
-  const res = await apiFetch('/api/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query,
-      session_id: sessionId || null,
-      domain_filter: domainFilter || 'All',
-    }),
-  });
+  let res;
+  try {
+    res = await apiFetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        session_id: sessionId || null,
+        domain_filter: domainFilter || 'All',
+      }),
+    });
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
+      throw new Error('Connecting to server... The backend service was momentarily reconnecting. Please try your question again in a moment.');
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ detail: res.statusText }));

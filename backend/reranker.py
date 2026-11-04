@@ -13,7 +13,7 @@ class RerankerEngine:
     """
 
     def __init__(self, model_name: str = None):
-        self.model_name = model_name or settings.FLASHRANK_MODEL_NAME or "ms-marco-MiniLM-L-12-v2"
+        self.model_name = model_name or settings.FLASHRANK_MODEL_NAME or "ms-marco-TinyBERT-L-2-v2"
         self._ranker = None
         self._ranker_initialized = False
 

@@ -425,15 +425,16 @@ async def process_query(
     db.add(user_msg)
     db.commit()
 
-    # Fetch active document filenames for query contextualization (strictly scoped to this user)
+    # Fetch active document IDs and filenames for query contextualization and strict retrieval scoping
     user_doc_records = (
-        db.query(Document.filename)
+        db.query(Document.id, Document.filename)
         .filter(Document.user_id == user_id)
         .all()
     )
-    user_doc_names = [d[0] for d in user_doc_records]
+    user_doc_ids = [str(d[0]) for d in user_doc_records]
+    user_doc_names = [d[1] for d in user_doc_records]
 
-    # Prepare LangGraph state — include user_id for scoped Qdrant retrieval
+    # Prepare LangGraph state — include user_id and active_doc_ids for scoped Qdrant retrieval
     initial_state = {
         "session_id": session_id,
         "raw_query": query_text,
@@ -452,6 +453,7 @@ async def process_query(
         "user_id": user_id,
         "user_name": current_user.full_name or "User",
         "user_documents": user_doc_names,
+        "active_doc_ids": user_doc_ids,
     }
 
     try:

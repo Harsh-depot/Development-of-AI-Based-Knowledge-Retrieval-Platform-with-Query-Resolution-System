@@ -105,6 +105,7 @@ class AgentState(TypedDict):
     user_id: Optional[str]  # JWT-authenticated user id for scoped Qdrant retrieval
     user_name: Optional[str]  # Authenticated user full name for query resolution
     user_documents: Optional[List[str]]  # Active document filenames in user's knowledge base
+    active_doc_ids: Optional[List[str]]  # Active document UUIDs in user's knowledge base
 
 
 # ==============================================================================
@@ -342,13 +343,25 @@ def retrieval_rerank_node(state: AgentState) -> Dict[str, Any]:
     query = state.get("standalone_query") or state.get("raw_query", "")
     domain = state.get("domain_filter")
     user_id = state.get("user_id")
+    active_doc_ids = state.get("active_doc_ids")
 
-    # Step A: Top-15 Retrieval from Qdrant (scoped to user if user_id present)
+    # If the user has 0 active documents in their knowledge base, do not search
+    if active_doc_ids is not None and len(active_doc_ids) == 0:
+        logger.info("Knowledge Base is empty for user. Returning Knowledge Gap directly.")
+        return {
+            "retrieved_chunks": [],
+            "reranked_chunks": [],
+            "confidence_score": 0.0,
+            "is_knowledge_gap": True,
+        }
+
+    # Step A: Top-15 Retrieval from Qdrant (scoped strictly to user and active documents)
     candidates = ingestion_engine.search_candidates(
         query=query,
         top_k=settings.RETRIEVAL_TOP_K,
         domain_filter=domain,
         user_id=user_id,
+        active_doc_ids=active_doc_ids,
     )
 
     # Step B: FlashRank Cross-Encoder Precision Reranking & Sigmoid Calibration

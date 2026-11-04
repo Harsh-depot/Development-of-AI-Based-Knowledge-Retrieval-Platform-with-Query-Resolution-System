@@ -141,25 +141,37 @@ class IngestionEngine:
     def parse_csv(file_path: str) -> List[Dict[str, Any]]:
         """Parses FAQ or tabular CSV files into contextual question-answer units."""
         import pandas as pd
-        df = pd.read_csv(file_path)
+        try:
+            df = pd.read_csv(file_path, skipinitialspace=True)
+        except Exception:
+            df = pd.read_csv(file_path, on_bad_lines="skip", encoding="latin-1", skipinitialspace=True)
+
         results = []
-        col_names = [c.lower() for c in df.columns]
 
         # Check if question/answer structure exists
         q_col = next((c for c in df.columns if "question" in c.lower() or "query" in c.lower() or "prompt" in c.lower()), None)
         a_col = next((c for c in df.columns if "answer" in c.lower() or "response" in c.lower() or "resolution" in c.lower()), None)
+        cat_col = next((c for c in df.columns if "category" in c.lower() or "topic" in c.lower() or "domain" in c.lower()), None)
 
         if q_col and a_col:
             for row_idx, (_, row) in enumerate(df.iterrows(), start=1):
+                if pd.isna(row[q_col]) or pd.isna(row[a_col]):
+                    continue
                 q = str(row[q_col]).strip()
                 a = str(row[a_col]).strip()
-                if q and a:
-                    faq_text = f"FAQ Item #{row_idx}\nQuestion: {q}\nAnswer: {a}"
-                    results.append({"text": faq_text, "page_number": 1})
+                if not q or not a or q.lower() == "nan" or a.lower() == "nan":
+                    continue
+                cat = str(row[cat_col]).strip() if cat_col and pd.notna(row[cat_col]) else None
+                cat_str = f" [Category: {cat}]" if cat and cat.lower() != "nan" else ""
+                faq_text = f"FAQ Item #{row_idx}{cat_str}\nQuestion: {q}\nAnswer: {a}"
+                results.append({"text": faq_text, "page_number": 1})
         else:
             # General CSV: serialize row entries
             for row_idx, (_, row) in enumerate(df.iterrows(), start=1):
-                row_str = " ; ".join(f"{col}: {val}" for col, val in row.items() if pd.notna(val))
+                row_str = " ; ".join(
+                    f"{col}: {val}" for col, val in row.items()
+                    if pd.notna(val) and str(val).strip().lower() != "nan"
+                )
                 if row_str.strip():
                     results.append({"text": f"Row #{row_idx}: {row_str}", "page_number": (row_idx // 20) + 1})
 
@@ -314,6 +326,7 @@ class IngestionEngine:
         top_k: int = None,
         domain_filter: Optional[str] = None,
         user_id: Optional[str] = None,
+        active_doc_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Embeds query using FastEmbed and searches Qdrant for top candidate chunks.
         
@@ -321,8 +334,14 @@ class IngestionEngine:
             query: Natural language query string.
             top_k: Number of candidates to retrieve (defaults to RETRIEVAL_TOP_K).
             domain_filter: Optional domain category constraint.
-            user_id: If provided, restricts search to chunks uploaded by this user.
+            user_id: If provided, strictly restricts search to chunks uploaded by this user.
+            active_doc_ids: If provided, strictly restricts search to documents currently active in user's DB.
         """
+        # If the user has explicitly 0 active documents in DB, return empty immediately
+        if active_doc_ids is not None and len(active_doc_ids) == 0:
+            logger.info("Active document list is empty. Returning 0 candidate chunks.")
+            return []
+
         top_k = top_k or settings.RETRIEVAL_TOP_K
 
         # Generate query embedding
@@ -341,79 +360,80 @@ class IngestionEngine:
                 )
             )
         if user_id:
+            # Strictly match authenticated user's ID — NEVER allow orphan or other users' chunks
+            must_conditions.append(
+                FieldCondition(
+                    key="user_id",
+                    match=MatchValue(value=user_id),
+                )
+            )
+
+        if active_doc_ids:
             try:
-                from qdrant_client.models import IsEmptyCondition, PayloadField
-                # Include chunks belonging to current user OR shared/system chunks (user_id empty)
+                from qdrant_client.models import MatchAny
                 must_conditions.append(
-                    Filter(
-                        should=[
-                            FieldCondition(key="user_id", match=MatchValue(value=user_id)),
-                            IsEmptyCondition(is_empty=PayloadField(key="user_id")),
-                        ]
+                    FieldCondition(
+                        key="document_id",
+                        match=MatchAny(any=active_doc_ids),
                     )
                 )
             except Exception:
-                must_conditions.append(
-                    FieldCondition(
-                        key="user_id",
-                        match=MatchValue(value=user_id),
-                    )
-                )
+                pass
 
         qdrant_filter = Filter(must=must_conditions) if must_conditions else None
 
         # Search in Qdrant
+        search_result = []
         try:
-            # qdrant-client >= 1.10 supports query_points or search
             if hasattr(self.qdrant_client, "query_points"):
                 search_result = self.qdrant_client.query_points(
                     collection_name=self.collection_name,
                     query=query_vector,
                     query_filter=qdrant_filter,
-                    limit=top_k,
+                    limit=top_k * 2 if active_doc_ids else top_k,
                 ).points
             else:
                 search_result = self.qdrant_client.search(
                     collection_name=self.collection_name,
                     query_vector=query_vector,
                     query_filter=qdrant_filter,
-                    limit=top_k,
+                    limit=top_k * 2 if active_doc_ids else top_k,
                 )
         except Exception as filter_err:
-            logger.warning(f"Filtered search encountered error: {filter_err}. Retrying without filter as failsafe...")
-            try:
-                if hasattr(self.qdrant_client, "query_points"):
-                    search_result = self.qdrant_client.query_points(
-                        collection_name=self.collection_name,
-                        query=query_vector,
-                        limit=top_k,
-                    ).points
-                else:
-                    search_result = self.qdrant_client.search(
-                        collection_name=self.collection_name,
-                        query_vector=query_vector,
-                        limit=top_k,
-                    )
-            except Exception as e:
-                logger.error(f"Fallback Qdrant search also failed: {e}")
-                return []
+            logger.error(f"Filtered Qdrant search encountered error: {filter_err}")
+            return []
 
         try:
             candidates = []
             for hit in search_result:
                 payload = hit.payload or {}
+                chunk_user_id = payload.get("user_id")
+                chunk_doc_id = payload.get("document_id")
+
+                # Strict Security Post-Filter: Never allow chunks from other users
+                if user_id and chunk_user_id and chunk_user_id != user_id:
+                    continue
+
+                # Strict Active Document Post-Filter: Never allow deleted documents to be returned
+                if active_doc_ids is not None and chunk_doc_id not in active_doc_ids:
+                    continue
+
                 candidates.append(
                     {
                         "chunk_id": str(hit.id),
                         "score": float(hit.score),
                         "chunk_text": payload.get("chunk_text", ""),
-                        "document_id": payload.get("document_id", ""),
+                        "document_id": chunk_doc_id or "",
                         "filename": payload.get("filename", "Unknown Document"),
                         "page_number": payload.get("page_number", 1),
                         "chunk_index": payload.get("chunk_index", 0),
                         "domain_category": payload.get("domain_category", "General"),
                     }
                 )
+
+                if len(candidates) >= top_k:
+                    break
+
             return candidates
         except Exception as e:
             logger.error(f"Error parsing Qdrant search results: {e}")
@@ -423,39 +443,50 @@ class IngestionEngine:
         """Deletes a document and its chunks from both Qdrant and SQL DB."""
         # 1. Query document record from DB
         doc = db_session.query(Document).filter(Document.id == document_id).first()
-        if not doc:
-            logger.warning(f"Document {document_id} not found in database.")
-            return False
-
-        # 2. Retrieve all chunk IDs for this document
+        
+        # 2. Retrieve all chunk IDs for this document (if doc exists)
         chunk_rows = db_session.query(Chunk.id).filter(Chunk.document_id == document_id).all()
         chunk_ids = [str(r[0]) for r in chunk_rows]
 
-        # 3. Delete points from Qdrant by Point IDs (failsafe, requires no payload index)
-        if chunk_ids:
-            try:
-                self.qdrant_client.delete(
-                    collection_name=self.collection_name,
-                    points_selector=chunk_ids,
-                )
-                logger.info(f"Deleted {len(chunk_ids)} vector points from Qdrant for document {document_id}")
-            except Exception as q_err:
-                logger.warning(f"Failed to delete points by ID from Qdrant ({q_err}). Trying filter deletion.")
+        # 3. Delete points from Qdrant by Point IDs AND by document_id filter
+        try:
+            from qdrant_client.models import PointIdsList
+            if chunk_ids:
                 try:
                     self.qdrant_client.delete(
                         collection_name=self.collection_name,
-                        points_selector=Filter(
-                            must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
-                        ),
+                        points_selector=PointIdsList(points=chunk_ids),
                     )
-                except Exception as q_err2:
-                    logger.error(f"Could not delete points from Qdrant: {q_err2}")
+                    logger.info(f"Deleted {len(chunk_ids)} vector points by PointIdsList from Qdrant for document {document_id}")
+                except Exception as e1:
+                    logger.warning(f"PointIdsList delete failed ({e1}). Trying Filter delete.")
+
+            # Always run payload filter delete to ensure 100% vector cleanup
+            self.qdrant_client.delete(
+                collection_name=self.collection_name,
+                points_selector=Filter(
+                    must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
+                ),
+            )
+            logger.info(f"Deleted points by document_id Filter from Qdrant for document {document_id}")
+        except Exception as q_err:
+            logger.error(f"Error deleting points from Qdrant for document {document_id}: {q_err}")
+
+        if not doc:
+            logger.warning(f"Document {document_id} not found in database (already removed).")
+            return True
 
         # 4. Explicitly delete child chunks first, then document to prevent FK violations
         try:
             db_session.query(Chunk).filter(Chunk.document_id == document_id).delete(synchronize_session=False)
             db_session.delete(doc)
             db_session.commit()
+            logger.info(f"Successfully deleted document '{doc.filename}' ({document_id}) from database.")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting document {document_id} from DB: {e}")
+            db_session.rollback()
+            return False
             logger.info(f"Successfully deleted document '{doc.filename}' ({document_id}) from database.")
             return True
         except Exception as e:
